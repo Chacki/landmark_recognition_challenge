@@ -1,4 +1,5 @@
 # [Landmark Recognition Challenge](https://www.kaggle.com/c/landmark-recognition-2019)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 
 ## Directories
 - `./data/` contains the datasets.
@@ -15,5 +16,7 @@
     - Discussion: https://www.kaggle.com/c/landmark-recognition-2019/discussion/91770#latest-530831
 
 ## Experiments
+### 00 Test
+Only for testing purpose.
 ### 01 ResNet50 trained with triplet loss
 

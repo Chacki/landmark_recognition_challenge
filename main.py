@@ -4,9 +4,9 @@ Description: Entry point of this repoitory. Helps starting experiments and
              on custom flags
 """
 import os
-from os import path
 import sys
 from glob import glob
+from os import path
 
 LOG_DIR = "./log/"
 CHECKPOINT_DIR = "./checkpoint/"
@@ -32,10 +32,12 @@ def main(experiment_path):
     exp_log_dir = path.join(LOG_DIR, name + changed_flags)
     exp_checkpoint_dir = path.join(CHECKPOINT_DIR, name + changed_flags)
     exp_evaluation_dir = path.join(EVALUATION_DIR, name + changed_flags)
+    exp_tensorboard_dir = path.join(TENSORBOARD_DIR, name + changed_flags)
     args = []
-    args.append("--tensorboard_dir " + exp_log_dir)
-    args.append("--checkpoint_dir " + exp_checkpoint_dir)
-    args.append("--evaluation_dir " + exp_evaluation_dir)
+    args.append("--log_dir=" + exp_log_dir)
+    args.append("--checkpoint_dir=" + exp_checkpoint_dir)
+    args.append("--evaluation_dir=" + exp_evaluation_dir)
+    args.append("--tensorboard_dir=" + exp_tensorboard_dir)
     args.append(" ".join(sys.argv[2:]))
     command = f"python -m experiments.exp_{name} " + " ".join(args).strip()
     print(f"Execute: {command}")

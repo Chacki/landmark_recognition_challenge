@@ -1,0 +1,12 @@
+name: landmark-recognition
+channels:
+  - pytorch
+dependencies:
+  - pandas
+  - pillow
+  - absl-py
+  - ignite
+  - pytorch
+  - torchvision
+  - tqdm
+  - conda-forge::tensorboardx
