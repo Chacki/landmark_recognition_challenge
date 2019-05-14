@@ -1,11 +1,12 @@
 # [Landmark Recognition Challenge](https://www.kaggle.com/c/landmark-recognition-2019)
 
 ## Directories
-- `/data/` contains the datasets.
-- `/evaluation/` contains the evaluation artifacts, such as evaluated metrics.
-- `/tensorboard/` contains the tensorboard logs.
-- `/log/` contains logs, such as logged stdout.
-- `/experiments/` contains experiment scripts.
+- `./data/` contains the datasets.
+- `./evaluation/` contains the evaluation artifacts, such as evaluated metrics.
+- `./tensorboard/` contains the tensorboard logs.
+- `./log/` contains logs, such as logged stdout.
+- `./experiments/` contains experiment scripts.
+    - experiment scripts must be named after the following structure: `exp_{ID}_{NAME}.py`
 
 ## Datasets
 - Dataset for challenge: https://www.kaggle.com/google/google-landmarks-dataset
