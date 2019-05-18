@@ -1,12 +1,17 @@
+from os import listdir, path
+
+import numpy as np
 import pandas as pd
-from os import path
 import torch
 from absl import flags
 from PIL import Image
 from torchvision import transforms
 
+flags.DEFINE_enum(
+    "dataset", None, listdir("./data/"), "select dataset from ./data/"
+)
+flags.mark_flag_as_required("dataset")
 FLAGS = flags.FLAGS
-flags.DEFINE_string("train_csv", "", "")
 
 
 class Train(torch.utils.data.Dataset):
@@ -15,8 +20,9 @@ class Train(torch.utils.data.Dataset):
 
     def __init__(self):
         super().__init__()
-        self.train_df = pd.read_csv(FLAGS.train_csv)
-        self.directory = path.dirname(FLAGS.train_csv)
+        csv_path = path.join("./data/", FLAGS.dataset, "train.csv")
+        self.train_df = pd.read_csv(csv_path)
+        self.directory = path.dirname(csv_path)
         self.transforms = transforms.Compose(
             [
                 transforms.Lambda(Image.open),
@@ -38,7 +44,7 @@ class Train(torch.utils.data.Dataset):
         img_path = path.join(path.expanduser(self.directory), img_path)
         return {
             "img": self.transforms(img_path),
-            "label": torch.tensor(label, dtype=torch.float),
+            "label": torch.from_numpy(np.asarray(label)).float(),
         }
 
     def __len__(self):
