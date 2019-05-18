@@ -12,6 +12,7 @@ flags.DEFINE_string("tensorboard_dir", None, "Save tensorboard logs here")
 flags.DEFINE_string("gpu", "", "Select gpu(s)")
 flags.DEFINE_integer("height", 224, "Image height")
 flags.DEFINE_integer("width", 224, "Image width")
+flags.DEFINE_integer("batch_size", 32, "batch size")
 FLAGS = flags.FLAGS
 
 
