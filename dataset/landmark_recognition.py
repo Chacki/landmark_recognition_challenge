@@ -26,6 +26,7 @@ class Train(torch.utils.data.Dataset):
         self.transforms = transforms.Compose(
             [
                 transforms.Lambda(Image.open),
+                transforms.Grayscale(3),
                 transforms.Resize(size=(FLAGS.height, FLAGS.width)),
                 transforms.ToTensor(),
             ]

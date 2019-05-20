@@ -23,15 +23,17 @@ def main(_):
     train_dataset = landmark_recognition.Train()
     identity_sampler = sampler.RandomIdentitySampler(train_dataset.labels)
     train_loader = DataLoader(
-        train_dataset, sampler=identity_sampler, batch_size=FLAGS.batch_size
+        train_dataset, sampler=identity_sampler, batch_size=FLAGS.batch_size, pin_memory=True
     )
-    model = resnet.resnet18(pretrained=True)
+    model = resnet.resnet50(pretrained=True)
     optimizer = torch.optim.Adam(model.parameters())
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
         optimizer=optimizer,
         loss_fn=triplet_loss.TripletLoss(margin=1),
-        prepare_batch=lambda x, device, non_blocking: (x["img"], x["label"]),
+        device=FLAGS.device,
+        non_blocking=True,
+        prepare_batch=lambda x, device, non_blocking: (x["img"].to(device, non_blocking=non_blocking), x["label"].to(device, non_blocking=non_blocking)),
     )
     ignite.metrics.RunningAverage(output_transform=lambda x: x).attach(
         trainer, "loss"
