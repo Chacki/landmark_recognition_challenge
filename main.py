@@ -13,7 +13,7 @@ CHECKPOINT_DIR = "./checkpoint/"
 EVALUATION_DIR = "./evaluation/"
 TENSORBOARD_DIR = "./tensorboard/"
 # Following flags are ignored for log and checkpoint folder name.
-FILTERED_FLAGS = ["train", "eval", "gpu", "epochs"]
+FILTERED_FLAGS = ["train", "eval", "device", "epochs"]
 
 
 def main(experiment_path):
