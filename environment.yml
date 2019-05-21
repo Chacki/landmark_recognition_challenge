@@ -2,6 +2,7 @@ name: landmark-recognition
 channels:
   - pytorch
 dependencies:
+  - scikit-learn
   - pandas
   - pillow
   - absl-py
@@ -9,4 +10,4 @@ dependencies:
   - pytorch
   - torchvision
   - tqdm
-  - conda-forge::tensorboardx
+  - conda-forge::tensorboardx<1.7
