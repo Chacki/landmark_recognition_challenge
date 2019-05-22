@@ -12,7 +12,7 @@ from dataset import landmark_recognition, sampler
 from loss import triplet_loss
 from utils import evaluation, logging
 
-flags.DEFINE_integer("margin", 2, "margin fro triplet loss")
+flags.DEFINE_float("margin", 0.3, "margin fro triplet loss")
 FLAGS = flags.FLAGS
 
 
@@ -36,7 +36,7 @@ def main(_):
     trainer.add_event_handler(
         ignite.engine.Events.EPOCH_COMPLETED, lambda _: evaluater.run(db_loader)
     )
-    logging.attach_loggers(trainer, evaluater)
+    logging.attach_loggers(trainer, evaluater, model)
     trainer.run(train_loader, max_epochs=100)
 if __name__ == "__main__":
     app.run(main)

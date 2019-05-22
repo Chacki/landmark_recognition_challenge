@@ -26,7 +26,7 @@ class TripletLoss:
         )
         # `dist_an` means distance(anchor, negative)
         # both `dist_an` and `relative_n_inds` with shape [N, 1]
-        dist_an, relative_n_inds = torch.max(
+        dist_an, relative_n_inds = torch.min(
             dist[is_neg].contiguous().view(N, -1), 1, keepdim=True
         )
         # shape [N]

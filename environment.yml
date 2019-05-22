@@ -12,3 +12,7 @@ dependencies:
   - tqdm
   - conda-forge::tensorboardx<1.7
   - conda-forge::pyflann
+  - pip
+  - pip:
+    - tensorboard
+    - tensorflow

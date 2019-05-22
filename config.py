@@ -3,6 +3,7 @@ File: config.py
 Description: Define flags which should be defined for every experiment
 """
 import os
+import shutil
 
 from absl import flags
 
@@ -27,6 +28,11 @@ def init_experiment():
         FLAGS.tensorboard_dir,
     ]:
         if directory:
+            if (
+                len(os.listdir(directory)) > 0
+                and input(f"Delete {directory} ? (y/n)") == "y"
+            ):
+                shutil.rmtree(directory)
             os.makedirs(directory, exist_ok=True)
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
