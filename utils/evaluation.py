@@ -1,16 +1,14 @@
-import traceback
-
 import ignite
 import numpy as np
 import pandas as pd
+import pyflann
 import torch
 from absl import flags
-from sklearn.neighbors import KNeighborsClassifier
 
 FLAGS = flags.FLAGS
 
 
-def GAP_vector(pred, conf, true, return_x=False):
+def gap_score(pred, conf, true, return_x=False):
     """ https://www.kaggle.com/davidthaler/gap-metric
     Compute Global Average Precision (aka micro AP), the metric for the
     Google Landmark Recognition competition.
@@ -42,16 +40,21 @@ class GAPMetric:
     def __init__(self, model, test_loader):
         self.model = model
         self.test_loader = test_loader
-        self.knn = KNeighborsClassifier(n_jobs=-1)
+        self.clf = pyflann.FLANN()
         self.engine = ignite.engine.create_supervised_evaluator(
             self.model,
             metrics={"gap": ignite.metrics.EpochMetric(self.func)},
             device=FLAGS.device,
             non_blocking=True,
         )
+        self.db_target = None
+        self.params = None
 
-    def calc(self, feats, target):
-        self.knn.fit(feats.cpu().numpy(), target.cpu().numpy())
+    def calc(self, db_feats, db_target):
+        self.db_target = db_target.cpu().numpy()
+        self.params = self.clf.build_index(
+            db_feats.cpu().numpy(), algorithm="autotuned", target_precision=0.9
+        )
         self.engine.run(self.test_loader)
         gap = self.engine.state.metrics["gap"]
         # TODO dont use nested evaluaters. Problem with nested no_grad env
@@ -59,11 +62,21 @@ class GAPMetric:
         return gap
 
     def func(self, test_feats, test_target):
-        knn_proba = self.knn.predict_proba(test_feats.cpu().numpy())
-        knn_idxs = np.argmax(knn_proba, axis=-1)
-        conf = knn_proba[(np.arange(len(knn_idxs)), knn_idxs)]
-        pred = np.vectorize(lambda x: self.knn.classes_[x])(knn_idxs)
-        gap = GAP_vector(pred, conf, test_target.cpu().numpy())
+        num_neighbors = 5
+        result, distance = self.clf.nn_index(
+            test_feats.cpu().numpy(),
+            num_neighbors=num_neighbors,
+            checks=self.params["checks"],
+        )
+        nearest_targets = self.db_target[result]
+        pred, count = np.unique(nearest_targets, return_counts=True, axis=-1)
+        pred = pred[np.arange(len(test_target)), np.argmax(count, axis=-1)]
+        distance = np.ma.array(
+            distance, mask=(nearest_targets.T == pred).T
+        ).mean(axis=-1)
+        conf = 1 - distance / np.max(distance)
+        conf *= np.max(count, axis=-1) / num_neighbors
+        gap = gap_score(pred, conf, test_target.cpu().numpy())
         return gap
 
 

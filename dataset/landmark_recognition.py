@@ -60,10 +60,10 @@ def get_dataloaders(sampler):
     dataframe = (
         pd.read_csv(csv_path)
         .groupby("landmark_id")
-        .filter(lambda x: len(x) > 2)
+        .filter(lambda x: len(x) > 5)
     )
     train_df, test_df = train_test_split(
-        dataframe, test_size=0.2, stratify=dataframe["landmark_id"]
+        dataframe, test_size=0.1, stratify=dataframe["landmark_id"]
     )
     train_set = Dataset(train_df, directory)
     test_set = Dataset(test_df, directory)
