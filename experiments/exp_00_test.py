@@ -5,6 +5,8 @@ Description: Experiment script for testing purpose only
 import ignite
 import torch
 from absl import app, flags
+from PIL import Image
+from torchvision import transforms
 from torchvision.models import resnet
 
 import config
@@ -13,6 +15,7 @@ from loss import triplet_loss
 from utils import evaluation, logging
 
 flags.DEFINE_float("margin", 0.3, "margin fro triplet loss")
+flags.DEFINE_float("lr", 0.001, "Learning rate")
 FLAGS = flags.FLAGS
 
 
@@ -21,10 +24,18 @@ def main(_):
     """
     config.init_experiment()
     train_loader, test_loader, db_loader = landmark_recognition.get_dataloaders(
-        sampler.RandomIdentitySampler
+        train_sampler=sampler.RandomIdentitySampler,
+        transforms=transforms.Compose(
+            [
+                transforms.Lambda(Image.open),
+                transforms.Grayscale(3),
+                transforms.Resize(size=(FLAGS.height, FLAGS.width)),
+                transforms.ToTensor(),
+            ]
+        ),
     )
     model = resnet.resnet50(pretrained=True)
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
         optimizer=optimizer,
@@ -38,5 +49,7 @@ def main(_):
     )
     logging.attach_loggers(trainer, evaluater, model)
     trainer.run(train_loader, max_epochs=100)
+
+
 if __name__ == "__main__":
     app.run(main)
