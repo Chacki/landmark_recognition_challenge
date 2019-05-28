@@ -29,7 +29,8 @@ def init_experiment():
     ]:
         if directory:
             if (
-                len(os.listdir(directory)) > 0
+                os.path.isdir(directory)
+                and len(os.listdir(directory)) > 0
                 and input(f"Delete {directory} ? (y/n)") == "y"
             ):
                 shutil.rmtree(directory)
