@@ -43,7 +43,7 @@ def main(_):
         device=FLAGS.device,
         non_blocking=True,
     )
-    evaluater = evaluation.build_validator(model, test_loader)
+    evaluater = evaluation.build_evaluater(model, test_loader)
     trainer.add_event_handler(
         ignite.engine.Events.EPOCH_COMPLETED, lambda _: evaluater.run(db_loader)
     )
