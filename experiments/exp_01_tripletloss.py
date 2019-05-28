@@ -3,6 +3,7 @@ File: exp_01_tripletloss.py
 Description: Experiment script for triplet loss with pretrained models on
              imagenet or places365
 """
+import cv2
 import ignite
 import torch
 from absl import app, flags
@@ -15,8 +16,8 @@ from loss import triplet_loss
 from models import resnet
 from utils import evaluation, logging
 
-flags.DEFINE_float("margin", 0.3, "margin fro triplet loss")
-flags.DEFINE_float("lr", 0.001, "Learning rate")
+flags.DEFINE_float("margin", 1, "margin fro triplet loss")
+flags.DEFINE_float("lr", 0.0001, "Learning rate")
 flags.DEFINE_integer("dim", 1024, "Dimension of output vector")
 FLAGS = flags.FLAGS
 
@@ -29,9 +30,14 @@ def main(_):
         train_sampler=sampler.RandomIdentitySampler,
         transforms=transforms.Compose(
             [
-                transforms.Lambda(Image.open),
-                transforms.Grayscale(3),
-                transforms.Resize(size=(FLAGS.height, FLAGS.width)),
+                transforms.Lambda(
+                    lambda x: cv2.cvtColor(
+                        cv2.imread(x, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB
+                    )
+                ),
+                transforms.ToPILImage(),
+                transforms.Resize(256),
+                transforms.RandomCrop(224),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -51,7 +57,6 @@ def main(_):
     evaluater = evaluation.build_evaluater(model, test_loader)
     evaluation.attach_eval(evaluater, trainer, train_loader)
     logging.attach_loggers(trainer, evaluater, model)
-    print(train_loader)
     trainer.run(train_loader, max_epochs=100)
 
 

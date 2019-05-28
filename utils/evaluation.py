@@ -96,4 +96,5 @@ def attach_eval(evaluater, trainer, db_loader):
     def _eval(engine):
         if engine.state.epoch % FLAGS.eval_epochs == 0:
             evaluater.run(db_loader)
+            print("GAP:", evaluater.state.metrics["gap"])
     trainer.add_event_handler(ignite.engine.Events.EPOCH_COMPLETED, _eval)

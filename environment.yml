@@ -8,6 +8,7 @@ dependencies:
   - ignite
   - pytorch
   - torchvision
+  - py-opencv
   - tqdm
   - conda-forge::tensorboardx<1.7
   - conda-forge::pyflann
