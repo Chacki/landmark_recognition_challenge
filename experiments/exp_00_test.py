@@ -44,9 +44,7 @@ def main(_):
         non_blocking=True,
     )
     evaluater = evaluation.build_evaluater(model, test_loader)
-    trainer.add_event_handler(
-        ignite.engine.Events.EPOCH_COMPLETED, lambda _: evaluater.run(db_loader)
-    )
+    evaluation.attach_eval(evaluater, trainer, train_loader)
     logging.attach_loggers(trainer, evaluater, model)
     trainer.run(train_loader, max_epochs=100)
 

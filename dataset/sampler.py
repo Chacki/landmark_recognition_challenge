@@ -33,5 +33,6 @@ class RandomIdentitySampler(torch.utils.data.Sampler):
                 np.random.choice(idxs, size=self.num_instances, replace=replace)
             )
         return iter(iterator)
+
     def __len__(self):
         return len(self.labels) * self.num_instances

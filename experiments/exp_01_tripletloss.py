@@ -51,6 +51,7 @@ def main(_):
     evaluater = evaluation.build_evaluater(model, test_loader)
     evaluation.attach_eval(evaluater, trainer, train_loader)
     logging.attach_loggers(trainer, evaluater, model)
+    print(train_loader)
     trainer.run(train_loader, max_epochs=100)
 
 
