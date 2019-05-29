@@ -20,7 +20,7 @@ class RandomIdentitySampler(torch.utils.data.Sampler):
             enumerate(data_source), total=len(data_source)
         ):
             self.label2idx[label].append(index)
-        self.num_instances = FLAGS.batch_size // 8
+        self.num_instances = 4
         self.labels = list(self.label2idx.keys())
 
     def __iter__(self):
