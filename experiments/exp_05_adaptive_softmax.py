@@ -69,7 +69,7 @@ def main(_):
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
     loss = nn.AdaptiveLogSoftmaxWithLoss(
         in_features=FLAGS.dim, n_classes=num_labels, cutoffs=[10]
-    )
+    ).to(FLAGS.device)
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
         optimizer=optimizer,
