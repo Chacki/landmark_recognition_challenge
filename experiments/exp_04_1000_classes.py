@@ -26,20 +26,16 @@ class ClassSampler(torch.utils.data.Sampler):
 
     def __init__(self, data_source):
         self.data_source = data_source
-        self.label2idx = defaultdict(list)
-        for index, label in tqdm(
-                enumerate(data_source), total=len(data_source)
-        ):
-            self.label2idx[label].append(index)
-        self.labels = list(self.label2idx.keys())
         label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(self.labels)
+        encoded_labels = label_encoder.fit_transform(self.data_source)
         unique_labels, label_count = np.unique(encoded_labels, return_counts=True)
         # labels with respect to number of occurence
         self.sorted_label2label = unique_labels[np.flip(np.argsort(label_count))]
         self.label2slabel = np.argsort(self.sorted_label2label)
         transformed_labels = self.label2slabel[encoded_labels]
-        self.first_1000_classes = np.argwhere(transformed_labels < 1000)
+        self.first_1000_classes = np.reshape(np.argwhere(transformed_labels < 1000),(-1,))
+        print(len(self.first_1000_classes))
+        print(self.first_1000_classes)
 
 
 
