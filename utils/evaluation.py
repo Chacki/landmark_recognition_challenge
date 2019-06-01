@@ -5,6 +5,7 @@ import pyflann
 import torch
 from absl import flags
 
+flags.DEFINE_integer("eval_epochs", 2, "Evaluate every N epochs")
 FLAGS = flags.FLAGS
 
 
@@ -80,7 +81,7 @@ class GAPMetric:
         return gap
 
 
-def build_validator(model, test_loader):
+def build_evaluater(model, test_loader):
     gapmetric = GAPMetric(model, test_loader)
     evaluater = ignite.engine.create_supervised_evaluator(
         model,
@@ -89,3 +90,11 @@ def build_validator(model, test_loader):
         non_blocking=True,
     )
     return evaluater
+
+
+def attach_eval(evaluater, trainer, db_loader):
+    def _eval(engine):
+        if engine.state.epoch % FLAGS.eval_epochs == 0:
+            evaluater.run(db_loader)
+            print("GAP:", evaluater.state.metrics["gap"])
+    trainer.add_event_handler(ignite.engine.Events.EPOCH_COMPLETED, _eval)

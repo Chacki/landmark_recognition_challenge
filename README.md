@@ -38,4 +38,4 @@ Checkpoints, evaluation artifacts, logs are stored in sub directories named afte
 ### 00 Test
 Only for testing purpose.
 ### 01 ResNet50 trained with triplet loss
-
+Crop input image into 5 sub images and extract features on each one. Uses triplet loss. Does not work yet!

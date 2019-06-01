@@ -4,11 +4,11 @@ channels:
 dependencies:
   - scikit-learn
   - pandas
-  - pillow
   - absl-py
   - ignite
   - pytorch
   - torchvision
+  - py-opencv
   - tqdm
   - conda-forge::tensorboardx<1.7
   - conda-forge::pyflann
@@ -16,3 +16,4 @@ dependencies:
   - pip:
     - tensorboard
     - tensorflow
+    - pillow-simd
