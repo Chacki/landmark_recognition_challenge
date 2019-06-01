@@ -44,7 +44,7 @@ class Dataset(Dataset):
         return self.dataframe.shape[0]
 
 
-def get_dataloaders(train_sampler, transforms):
+def get_dataloaders(train_sampler, transforms, label_encoder=lambda x: x):
     csv_path = path.join("./data/", FLAGS.dataset, "train.csv")
     directory = path.dirname(csv_path)
     # TODO should be filtered before downloading the images
@@ -53,6 +53,7 @@ def get_dataloaders(train_sampler, transforms):
         .groupby("landmark_id")
         .filter(lambda x: len(x) > 3)
     )
+    dataframe["landmark_id"] = label_encoder(dataframe["landmark_id"])
     # take 2 instances of each class for testing
     train_df, test_df = train_test_split(
         dataframe,
