@@ -23,8 +23,21 @@ FLAGS = flags.FLAGS
 
 
 class ClassSampler(torch.utils.data.Sampler):
-    def __init__(self, data_source):
-        super.__init__(data_source)
+
+    def __init__(self, data_source, num_samples=None):
+        self.data_source = data_source
+
+        self._num_samples = num_samples
+
+
+        if self._num_samples is not None:
+            raise ValueError("With replacement=False, num_samples should not be specified, "
+                             "since a random permute will be performed.")
+
+        if not isinstance(self.num_samples, int) or self.num_samples <= 0:
+            raise ValueError("num_samples should be a positive integer "
+                             "value, but got num_samples={}".format(self.num_samples))
+
         self.label2idx = defaultdict(list)
         for index, label in tqdm(
                 enumerate(data_source), total=len(data_source)
@@ -39,23 +52,18 @@ class ClassSampler(torch.utils.data.Sampler):
         self.label2slabel = np.argsort(self.sorted_label2label)
         transformed_labels = self.label2slabel[self.labels]
         first_1000_classes = np.argwhere(transformed_labels < 1000)
+        self.num_instances = len(data_source)
         return first_1000_classes
 
-    #to be changed
-    def __iter__(self):
-        labels = np.random.permutation(self.labels)
-        iterator = []
-        for label in labels:
-            idxs = self.label2idx[label]
-            replace = len(idxs) < self.num_instances
-            iterator.extend(
-                np.random.choice(idxs, size=self.num_instances, replace=replace)
-            )
-        return iter(iterator)
+    
 
-    # to be changed
+    def __iter__(self):
+        n = len(self.data_source)
+        return iter(torch.randperm(n).tolist())
+
+
     def __len__(self):
-        return len(self.labels) * self.num_instances
+        return self.num_samples
 
 
 def main(_):
@@ -63,7 +71,7 @@ def main(_):
     """
     config.init_experiment()
     train_loader, test_loader, db_loader = landmark_recognition.get_dataloaders(
-        train_sampler=sampler.RandomIdentitySampler,
+        train_sampler=ClassSampler,
         transforms=transforms.Compose(
             [
                 transforms.Lambda(Image.open),
