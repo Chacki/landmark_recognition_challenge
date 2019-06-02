@@ -11,31 +11,20 @@ from torchvision import transforms
 from torchvision.models import resnet
 from torch.nn.modules.loss import CrossEntropyLoss
 import config
-from dataset import landmark_recognition, sampler
+from dataset import landmark_recognition
 from sklearn.preprocessing import LabelEncoder
+from utils import evaluation, logging, data
 
-from tqdm import tqdm
-from utils import evaluation, logging
-from collections import defaultdict
 
 flags.DEFINE_float("lr", 0.001, "Learning rate")
+flags.DEFINE_integer("num_classes", 1000, "Number of Classes")
 FLAGS = flags.FLAGS
 
 
 class ClassSampler(torch.utils.data.Sampler):
 
     def __init__(self, data_source):
-        self.data_source = data_source
-        label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(self.data_source)
-        unique_labels, label_count = np.unique(encoded_labels, return_counts=True)
-        # labels with respect to number of occurence
-        self.sorted_label2label = unique_labels[np.flip(np.argsort(label_count))]
-        self.label2slabel = np.argsort(self.sorted_label2label)
-        transformed_labels = self.label2slabel[encoded_labels]
-        self.first_1000_classes = np.reshape(np.argwhere(transformed_labels < 1000),(-1,))
-        print(len(self.first_1000_classes))
-        print(self.first_1000_classes)
+        self.first_1000_classes = np.reshape(np.argwhere(data_source < FLAGS.num_classes),(-1,))
 
 
 
@@ -51,6 +40,7 @@ class ClassSampler(torch.utils.data.Sampler):
 def main(_):
     """ main entrypoint, must be called with app.run(main) to define all flags
     """
+    label_encoder = data.LabelEncoder()
     config.init_experiment()
     train_loader, test_loader, db_loader = landmark_recognition.get_dataloaders(
         train_sampler=ClassSampler,
@@ -62,6 +52,7 @@ def main(_):
                 transforms.ToTensor(),
             ]
         ),
+        label_encoder=label_encoder.fit_transform,
     )
     model = resnet.resnet50(pretrained=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
