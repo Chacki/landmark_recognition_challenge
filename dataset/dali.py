@@ -14,6 +14,34 @@ flags.mark_flag_as_required("dataset")
 FLAGS = flags.FLAGS
 
 
+class CommonPipeline(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id):
+        super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
+
+        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.resize = ops.Resize(
+            device="cpu", image_type=types.RGB, interp_type=types.INTERP_LINEAR
+        )
+        self.cmn = ops.CropMirrorNormalize(
+            device="cpu",
+            output_dtype=types.FLOAT,
+            crop=(227, 227),
+            image_type=types.RGB,
+            mean=[128.0, 128.0, 128.0],
+            std=[1.0, 1.0, 1.0],
+        )
+        self.uniform = ops.Uniform(range=(0.0, 1.0))
+        self.resize_rng = ops.Uniform(range=(256, 480))
+
+    def base_define_graph(self, inputs, labels):
+        images = self.decode(inputs)
+        images = self.resize(images, resize_shorter=self.resize_rng())
+        output = self.cmn(
+            images, crop_pos_x=self.uniform(), crop_pos_y=self.uniform()
+        )
+        return (output, labels)
+
+
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self):
         super(MXNetReaderPipeline, self).__init__(FLAGS.batch_size, 4, 0)
