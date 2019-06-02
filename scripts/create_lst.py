@@ -26,7 +26,7 @@ def prepare_train():
         )
         .where(
             lambda x: x.path.apply(
-                lambda x: path.isdir(path.join(path.dirname(FLAGS.csv), x))
+                lambda x: path.isfile(path.join(path.dirname(FLAGS.csv), x))
             )
         )
         .groupby("landmark_id")
