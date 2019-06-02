@@ -14,6 +14,7 @@ import config
 from dataset import landmark_recognition
 from sklearn.preprocessing import LabelEncoder
 from utils import evaluation, logging, data
+from models import resnet
 
 
 flags.DEFINE_float("lr", 0.001, "Learning rate")
@@ -54,7 +55,7 @@ def main(_):
         ),
         label_encoder=label_encoder.fit_transform,
     )
-    model = resnet.resnet50(pretrained=True)
+    model = resnet.build_model(out_dim=FLAGS.num_classes)
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
