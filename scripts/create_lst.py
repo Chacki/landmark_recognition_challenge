@@ -27,6 +27,7 @@ def prepare_train():
             + x.id
             + ".jpg"
         )
+        .reset_index(drop=True)
         .to_csv(
             path.splitext(FLAGS.csv)[0] + ".lst",
             header=False,
