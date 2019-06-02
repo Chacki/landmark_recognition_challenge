@@ -35,10 +35,7 @@ class Dataset(Dataset):
             self.dataframe[["path", "landmark_id"]].iloc[index].T.to_numpy()
         )
         img_path = path.join(path.expanduser(self.directory), img_path)
-        return (
-            self.transforms(img_path),
-            torch.from_numpy(np.array(label)).float(),
-        )
+        return (self.transforms(img_path), torch.from_numpy(np.array(label)))
 
     def __len__(self):
         return self.dataframe.shape[0]
