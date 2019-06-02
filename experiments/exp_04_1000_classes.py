@@ -12,7 +12,6 @@ from torchvision.models import resnet
 from torch.nn.modules.loss import CrossEntropyLoss
 import config
 from dataset import landmark_recognition
-from sklearn.preprocessing import LabelEncoder
 from utils import evaluation, logging, data
 from models import resnet
 
@@ -51,6 +50,9 @@ def main(_):
                 transforms.Grayscale(3),
                 transforms.Resize(size=(FLAGS.height, FLAGS.width)),
                 transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
             ]
         ),
         label_encoder=label_encoder.fit_transform,
@@ -68,6 +70,7 @@ def main(_):
     evaluation.attach_eval(evaluater, trainer, train_loader)
     logging.attach_loggers(trainer, evaluater, model)
     trainer.run(train_loader, max_epochs=100)
+
 
 
 if __name__ == "__main__":
