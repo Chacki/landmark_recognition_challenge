@@ -18,15 +18,20 @@ def prepare_train():
     label_encoder = data.LabelEncoder()
     (
         pd.read_csv(FLAGS.csv)
-        .groupby("landmark_id")
-        .filter(lambda x: len(x) > FLAGS.min_instances)
-        .assign(label=lambda x: label_encoder.fit_transform(x.landmark_id))
         .assign(
             path=lambda x: path.basename(FLAGS.csv).split(".")[0]
             + "/"
             + x.id
             + ".jpg"
         )
+        .where(
+            lambda x: x.path.apply(
+                lambda x: path.isdir(path.join(path.dirname(FLAGS.csv), x))
+            )
+        )
+        .groupby("landmark_id")
+        .filter(lambda x: len(x) > FLAGS.min_instances)
+        .assign(label=lambda x: label_encoder.fit_transform(x.landmark_id))
         .reset_index(drop=True)
         .to_csv(
             path.splitext(FLAGS.csv)[0] + ".lst",
