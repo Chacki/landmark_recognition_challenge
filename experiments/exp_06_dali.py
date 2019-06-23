@@ -15,10 +15,11 @@ from dataset import dali
 from models import resnet
 from utils import data, evaluation, logging
 
-flags.DEFINE_float("lr", 0.001, "Learning rate")
-flags.DEFINE_integer("dim", 1024, "Dimension of output vector")
+flags.DEFINE_float("lr", 0.0001, "Learning rate")
+flags.DEFINE_integer("dim", 2048, "Dimension of output vector")
 FLAGS = flags.FLAGS
 
+from itertools import chain
 
 def main(_):
     """ main entrypoint, must be called with app.run(main) to define all flags
@@ -26,24 +27,28 @@ def main(_):
     config.init_experiment()
 
     label_encoder = data.LabelEncoder()
-    train_loader, prepare_batch = dali.get_dataloader()
+    train_loader, prepare_batch, labels = dali.get_dataloader()
 
-    model = resnet.build_model(out_dim=FLAGS.dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
-    loss = nn.AdaptiveLogSoftmaxWithLoss(
-        in_features=FLAGS.dim, n_classes=num_labels, cutoffs=[10, 100, 1000]
-    ).to(FLAGS.device)
+    backbone = resnet.build_model(out_dim=FLAGS.dim)
+    output_layer = nn.Linear(FLAGS.dim, max(labels)+1)
+    model = nn.Sequential(backbone, nn.ReLU(), output_layer)
+    for part in backbone[:-1]:
+        for param in part.parameters():
+            param.requires_grad = False
+    optimizer = torch.optim.Adam(chain(backbone[-1].parameters(), output_layer.parameters()), lr=FLAGS.lr)
+    #loss = nn.AdaptiveLogSoftmaxWithLoss(
+    #    in_features=FLAGS.dim, n_classes=max(labels) + 1, cutoffs=[10, 100, 1000]
+    #).to(FLAGS.device)
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
         optimizer=optimizer,
-        loss_fn=lambda *x: loss(*x).loss,
+        #loss_fn=lambda *x: loss(*x).loss,
+        loss_fn=nn.CrossEntropyLoss(),
         device=FLAGS.device,
         non_blocking=True,
         prepare_batch=prepare_batch,
     )
-    evaluater = evaluation.build_evaluater(model, train_loader)
-    evaluation.attach_eval(evaluater, trainer, train_loader)
-    logging.attach_loggers(trainer, evaluater, model)
+    logging.attach_loggers(trainer, None, model)
     trainer.run(train_loader, max_epochs=100)
 
 
