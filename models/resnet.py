@@ -1,17 +1,11 @@
 import os
 
 import torch
-from absl import flags
 from torch import nn
 from torch.hub import load_state_dict_from_url
 from torchvision import models
 
 from utils import layers
-
-flags.DEFINE_enum(
-    "model", "imagenet", ["imagenet", "places365"], "Pretrained model to use"
-)
-FLAGS = flags.FLAGS
 
 
 class ResNet(models.resnet.ResNet):
@@ -44,7 +38,7 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet(
+    model = _resnet(
         "resnet50",
         models.resnet.Bottleneck,
         [3, 4, 6, 3],
@@ -52,6 +46,7 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         progress,
         **kwargs
     )
+    return model
 
 
 def resnet50_places365():
@@ -71,20 +66,4 @@ def resnet50_places365():
         for k, v in checkpoint["state_dict"].items()
     }
     model.load_state_dict(state_dict)
-    return model
-
-
-def build_model(out_dim=1024):
-    if FLAGS.model == "imagenet":
-        model = nn.Sequential(
-            resnet50(pretrained=True),
-            layers.Lambda(lambda x: x.flatten(start_dim=1)),
-            nn.Linear(2048 * 7 * 7, out_dim),
-        )
-    elif FLAGS.model == "places365":
-        model = nn.Sequential(
-            resnet50_places365(),
-            layers.Lambda(lambda x: x.flatten(start_dim=1)),
-            nn.Linear(2048 * 7 * 7, out_dim),
-        )
     return model
