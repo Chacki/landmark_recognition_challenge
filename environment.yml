@@ -2,19 +2,18 @@ name: landmark-recognition
 channels:
   - pytorch
 dependencies:
+  - jupyter
+  - pillow
   - scikit-learn
   - pandas
   - absl-py
   - ignite
   - pytorch
   - torchvision
-  - py-opencv
   - tqdm
   - conda-forge::tensorboardx<1.7
-  - conda-forge::pyflann
   - pip
   - pip:
     - "--extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali"
     - tensorboard
     - tensorflow
-    - pillow-simd
