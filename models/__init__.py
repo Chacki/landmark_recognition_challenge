@@ -5,10 +5,14 @@ from . import resnet
 __models__ = {
     "resnet50_imagenet": resnet.resnet50,
     "resnet50_places365": resnet.resnet50_places365,
+    "resnext101_32x8d_wsl": resnet.resnext101_32x8d_wsl,
 }
 
 flags.DEFINE_enum(
-    "model", "imagenet", list(__models__.keys()), "Pretrained model to use"
+    "model",
+    "resnet50_imagenet",
+    list(__models__.keys()),
+    "Pretrained model to use",
 )
 FLAGS = flags.FLAGS
 

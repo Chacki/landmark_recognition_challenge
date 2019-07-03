@@ -8,6 +8,14 @@ from torchvision import models
 from utils import layers
 
 
+def resnext101_32x8d_wsl():
+    model = torch.hub.load(
+        "facebookresearch/WSL-Images", "resnext101_32x8d_wsl"
+    )
+    model = nn.Sequential(*(list(model.children())[:-1]))
+    return model
+
+
 class ResNet(models.resnet.ResNet):
     def forward(self, x):
         x = self.conv1(x)
