@@ -9,7 +9,10 @@ from torch import nn
 FLAGS = flags.FLAGS
 
 
-class TripletLoss:
+class OnlineHardMining:
+    """ Triplet loss which samples both, hard negative and hard postive samples.
+    """
+
     def __init__(self, margin):
         self.loss = nn.TripletMarginLoss(margin=margin)
 
@@ -31,4 +34,31 @@ class TripletLoss:
             )
         # shape [N]
         loss = self.loss(feats, feats[relative_p_inds], feats[relative_n_inds])
+        return loss
+
+
+class OnlineHardNegativeMining:
+    """ Triplet loss with online hard negative mining.
+        Positive samples are given through preprocessing.
+    """
+
+    def __init__(self, margin):
+        self.loss = nn.TripletMarginLoss(margin=margin)
+
+    def __call__(self, feats, labels):
+        """
+        feats and labels are reshaped matching pairs
+        [id0, id0, id1, id1, ...]
+        """
+        with torch.no_grad():
+            N = labels.size(0)
+            dist = torch.cdist(feats, feats)
+            is_neg = labels.expand(N, N).ne(labels.expand(N, N).t())
+            # `dist_an` means distance(anchor, negative)
+            # both `dist_an` and `relative_n_inds` with shape [N, 1]
+            relative_n_inds = torch.argmin(
+                dist[is_neg].contiguous().view(N, -1), 1, keepdim=True
+            )
+        # shape [N]
+        loss = self.loss(feats[::2], feats[1::2], feats[relative_n_inds][::2])
         return loss
