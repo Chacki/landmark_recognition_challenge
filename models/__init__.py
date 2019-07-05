@@ -2,6 +2,8 @@ import torch
 from absl import app, flags
 from torch import nn
 
+from utils import layers
+
 from . import resnet
 
 __models__ = {
@@ -16,11 +18,17 @@ flags.DEFINE_enum(
     list(__models__.keys()),
     "Pretrained model to use",
 )
+flags.DEFINE_integer("output_dim", None, "Output dimension of feature vector")
 FLAGS = flags.FLAGS
 
 
 def build_model(checkpoint=None, **kwargs):
+    # model gets an image as input and returns a vector
     model = __models__[FLAGS.model](kwargs)
+    if FLAGS.output_dim is None:
+        model.fc = layers.Lambda(lambda x: x.view(x.size(0), -1))
+    else:
+        model.fc = nn.Linear(model.fc.in_features, FLAGS.output_dim)
     if checkpoint:
         state_dict = torch.load(checkpoint)
         out_features = state_dict["fc.weight"].size(0)

@@ -60,5 +60,7 @@ class OnlineHardNegativeMining:
                 dist[is_neg].contiguous().view(N, -1), 1, keepdim=True
             )
         # shape [N]
-        loss = self.loss(feats[::2], feats[1::2], feats[relative_n_inds][::2])
+        loss = self.loss(
+            feats[::2], feats[1::2], feats[relative_n_inds].squeeze()[::2]
+        )
         return loss

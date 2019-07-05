@@ -12,7 +12,6 @@ def resnext101_32x8d_wsl():
     model = torch.hub.load(
         "facebookresearch/WSL-Images", "resnext101_32x8d_wsl"
     )
-    model = nn.Sequential(*(list(model.children())[:-1]))
     return model
 
 
@@ -54,7 +53,6 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         progress,
         **kwargs
     )
-    model = nn.Sequential(*(list(model.children())[:-1]))
     return model
 
 
