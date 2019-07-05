@@ -54,6 +54,7 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         progress,
         **kwargs
     )
+    model = nn.Sequential(*(list(model.children())[:-1]))
     return model
 
 

@@ -1,4 +1,6 @@
+import torch
 from absl import app, flags
+from torch import nn
 
 from . import resnet
 
@@ -18,7 +20,7 @@ FLAGS = flags.FLAGS
 
 
 def build_model(checkpoint=None, **kwargs):
-    model = __models__[FLAGS.dimension](kwargs)
+    model = __models__[FLAGS.model](kwargs)
     if checkpoint:
         state_dict = torch.load(checkpoint)
         out_features = state_dict["fc.weight"].size(0)

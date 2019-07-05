@@ -1,4 +1,5 @@
 import pickle
+import random
 from os import path
 
 import numpy as np
@@ -6,6 +7,7 @@ import pandas as pd
 import PIL
 import torch
 from absl import app, flags, logging
+from scipy.spatial.distance import pdist, squareform
 from torchvision import transforms
 from tqdm.auto import tqdm
 
@@ -51,16 +53,23 @@ def get_feats(df):
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
         batch_size=FLAGS.batch_size,
-        num_workers=4,
+        num_workers=16,
         shuffle=False,
     )
-    results = torch.empty(len(ds), 2048)
+    bs = FLAGS.batch_size
+    results = []
     with torch.no_grad():
-        for idx, img in enumerate(tqdm(dl)):
-            result = model(img.cuda()).view(-1, 2048)
-            results[bs * idx : bs * (idx + 1)] = result
+        for img in tqdm(dataloader):
+            results.append(
+                torch.nn.functional.normalize(
+                    model(img.cuda()).view(img.size(0), -1)
+                )
+                .cpu()
+                .numpy()
+            )
+    results = np.concatenate((results), axis=0)
     model.cpu()
-    return results.numpy()
+    return results
 
 
 def get_pairs(distv, indices, threshold):
@@ -69,9 +78,7 @@ def get_pairs(distv, indices, threshold):
     if len(valid_entries) == 0:
         return []
     ids = [(indices[a], indices[b]) for a, b in np.split(valid_entries, 2)[0]]
-    return (
-        random.sample(ids, 100) if len(ids) > 100 else ids < Plug > CocRefresh
-    )
+    return random.sample(ids, 100) if len(ids) > 100 else ids
 
 
 def main(_):
@@ -80,7 +87,6 @@ def main(_):
     logging.info("Extracting feats")
     feats = get_feats(df_csv)
     np.save(path.join(FLAGS.save_dir, "valid_train_feats.npy"), feats)
-    feats = feats / np.linalg.norm(feats, axis=1, keepdims=True)
     df_feats = pd.DataFrame(data=feats)
     df_feats["landmark_id"] = df_csv["landmark_id"]
     logging.info("Calculating distances")
@@ -94,9 +100,12 @@ def main(_):
             x: get_pairs(v[0], v[1], float(threshold))
             for x, v in tqdm(dists.items())
         }
-        pairs = {x: v for x, v in pairs if len(v) > 0}
+        pairs = {x: v for x, v in pairs.items() if len(v) > 0}
         num_pairs = [len(v) for v in pairs.values()]
-        print("Number of classes:     ", len(pairs.keys))
+        if len(num_pairs) == 0:
+            print("Threshold too high 😭")
+            continue
+        print("Number of classes:     ", len(pairs.keys()))
         print("Number of pairs:       ", sum(num_pairs))
         print("Min samples per class: ", min(num_pairs))
         print("Mean samples per class:", sum(num_pairs) / len(pairs.keys()))

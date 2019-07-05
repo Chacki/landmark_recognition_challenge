@@ -2,6 +2,9 @@ name: landmark-recognition
 channels:
   - pytorch
 dependencies:
+  - pylint
+  - jedi
+  - scipy
   - jupyter
   - pillow
   - scikit-learn
