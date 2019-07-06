@@ -4,7 +4,8 @@ from os import path
 import pandas as pd
 import torch
 from absl import app, flags
-from ignite import contrib, engine, handlers, metrics
+from ignite import engine, handlers, metrics
+from ignite.contrib.handlers import ProgressBar
 from PIL import Image
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import transforms
@@ -28,25 +29,28 @@ def main(_):
         path.join("./data/google-landmark", FLAGS.matching_pairs + ".pkl"), "rb"
     ) as f:
         pairs = pickle.load(f)
-    csv_path = "./data/google-landmark/valid_train.csv"
-    directory = path.dirname(csv_path)
     transform = transforms.Compose(
         [
-            transforms.Lambda(Image.open),
+            transforms.Lambda(lambda x: Image.open(x).convert("RGB")),
             transforms.RandomCrop(224, pad_if_needed=True),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
     )
-    ds = landmark_recognition.Dataset(df_train, directory, transform)
-    print(len(set([v for t in pairs.values() for v in t])))
+    dataset = landmark_recognition.Dataset(
+        df_train, "./data/google-landmark/train", transform
+    )
+    print(
+        "Amount of images: ", len(set([v for t in pairs.values() for v in t]))
+    )
     set_valid = set()
-    while len(set_valid) < 100000:
+    pairs = {k: v for k, v in pairs.items() if len(v) > 0}
+    while len(set_valid) < 50000:
         for ps in pairs.values():
             idx1, idx2 = ps.pop()
             set_valid.add(idx1)
             set_valid.add(idx2)
-        pairs = {k:v for k, v in pairs.items() if len(v) > 0}
+        pairs = {k: v for k, v in pairs.items() if len(v) > 0}
     valid_dl = DataLoader(
         dataset=dataset,
         batch_size=FLAGS.batch_size,
@@ -57,7 +61,7 @@ def main(_):
     train_dl = DataLoader(
         dataset=dataset,
         batch_size=FLAGS.batch_size,
-        sampler=sampler,
+        sampler=train_sampler,
         num_workers=16,
     )
 
@@ -67,22 +71,24 @@ def main(_):
         model=model,
         optimizer=optimizer,
         loss_fn=triplet_loss.OnlineHardNegativeMining(FLAGS.margin),
-        device=FLAGS.device,
+        device="cuda",
         non_blocking=True,
     )
-    evaluater = engine.create_supervised_evaluator(
-        model=model,
-        metrics={"triplet_loss": triplet_loss.OnlineHardMining(FLAGS.margin)}
-        device=FLAGS.device,
-    )
-    pbar = contrib.handlers.ProgressBar()
+    # evaluater = engine.create_supervised_evaluator(
+    #     model=model,
+    #     metrics={"triplet_loss": RunningAverage(output_transform},
+    #     output_transform=triplet_loss.OnlineHardMining(FLAGS.margin),
+    #     device="cuda",
+    # )
+    metrics.RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
+    pbar = ProgressBar()
     pbar.attach(trainer, ["loss"])
 
-    def evaluation(engine):
-        evaluater.run(valid_dl)
-        pbar.log_message(evaluater.state.metrics)
+    # def evaluation(engine):
+    #     evaluater.run(valid_dl)
+    #     pbar.log_message(evaluater.state.metrics)
 
-    trainer.add_event_handler(engine.Events.EPOCH_COMPLETED, evaluation)
+    # trainer.add_event_handler(engine.Events.EPOCH_COMPLETED, evaluation)
 
     model_checkpoint = handlers.ModelCheckpoint(
         dirname=FLAGS.checkpoint_dir,
@@ -93,7 +99,6 @@ def main(_):
     trainer.add_event_handler(
         engine.Events.EPOCH_COMPLETED, model_checkpoint, {"model": model}
     )
-    metrics.RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
     trainer.run(train_dl, max_epochs=10)
 
 

@@ -1,4 +1,7 @@
+from functools import partial
+
 import torch
+import torchvision.models as models
 from absl import app, flags
 from torch import nn
 
@@ -7,7 +10,7 @@ from utils import layers
 from . import resnet
 
 __models__ = {
-    "resnet50_imagenet": resnet.resnet50,
+    "resnet50_imagenet": models.resnet50,
     "resnet50_places365": resnet.resnet50_places365,
     "resnext101_32x8d_wsl": resnet.resnext101_32x8d_wsl,
 }

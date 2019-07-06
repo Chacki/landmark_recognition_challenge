@@ -50,6 +50,7 @@ class OnlineHardNegativeMining:
         feats and labels are reshaped matching pairs
         [id0, id0, id1, id1, ...]
         """
+        assert (labels[::2] == labels[1::2]).all()
         with torch.no_grad():
             N = labels.size(0)
             dist = torch.cdist(feats, feats)
