@@ -4,9 +4,58 @@ import pandas as pd
 import pyflann
 import torch
 from absl import flags
+from tqdm.auto import tqdm
+from operator import itemgetter
+from sklearn.metrics import pairwise_distances
+import itertools
 
 flags.DEFINE_integer("eval_epochs", 2, "Evaluate every N epochs")
 FLAGS = flags.FLAGS
+
+
+def top_k_rank(query_dl, gallery_dl, model, num_of_top_rank):
+    query_features = []
+    with torch.no_grad():
+        for img in tqdm(query_dl):
+            query_features.append(
+                torch.nn.functional.normalize(
+                    model(img.cuda()).view(img.size(0), -1)
+                )
+                    .cpu()
+                    .numpy()
+            )
+    query_features = np.concatenate((query_features), axis=0)
+    model.cpu()
+
+    results = []
+    with torch.no_grad():
+        for label, image in tqdm(gallery_dl):
+            gallery_feature = torch.nn.functional.normalize(
+                    model(image.cuda()).view(image.size(0), -1)
+                ).cpu().numpy()
+            model.cpu()
+            similarity_matrix = pairwise_distances(query_features, gallery_feature, metric=np.dot)
+            similarities = []
+            for row in similarity_matrix:
+                
+            top_k_rank = similarities.sort(key=itemgetter(0))[0:num_of_top_rank]
+            results.append(top_k_rank)
+        return results
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def gap_score(pred, conf, true, return_x=False):
