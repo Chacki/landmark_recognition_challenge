@@ -56,7 +56,6 @@ def get_feats(df):
         num_workers=16,
         shuffle=False,
     )
-    bs = FLAGS.batch_size
     results = []
     with torch.no_grad():
         for img in tqdm(dataloader):
