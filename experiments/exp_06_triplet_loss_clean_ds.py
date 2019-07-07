@@ -9,13 +9,12 @@ from ignite import engine, handlers, metrics
 from PIL import Image
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import transforms
-from tqdm.auto import tqdm
 
 import config
 import models
 from dataset import landmark_recognition, matching_pairs_sampler
 from loss import triplet_loss
-from utils import logging
+from utils import evaluation, logging
 
 flags.DEFINE_float("lr", 0.0001, "Learning rate")
 flags.DEFINE_string("matching_pairs", None, "Path to matching pairs pkl file")
@@ -71,21 +70,18 @@ def main(_):
         device="cuda",
         non_blocking=True,
     )
-    eval_loss = triplet_loss.OnlineHardMining(FLAGS.margin)
+    acc_metric = evaluation.CalculateAccuracy(train_dl, model)
     evaluater = engine.create_supervised_evaluator(
         model=model,
-        metrics={
-            "triplet_loss": metrics.RunningAverage(
-                output_transform=lambda x: eval_loss(x[0], x[1])
-            )
-        },
+        metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
         device="cuda",
     )
 
     logging.attach_loggers(
         train_engine=trainer,
-        eval_engine=None,
+        eval_engine=evaluater,
         model=model,
+        early_stopping_metric="Accuracy",
         additional_tb_log_handler=[
             (
                 logging.EmbeddingHandler(model, valid_dl),
@@ -93,6 +89,6 @@ def main(_):
             )
         ],
     )
-    trainer.run(train_dl, max_epochs=10)
+    trainer.run(train_dl, max_epochs=50)
 if __name__ == "__main__":
     app.run(main)

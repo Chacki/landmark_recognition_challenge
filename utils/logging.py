@@ -34,11 +34,12 @@ class EmbeddingHandler(BaseHandler):
             embeddings = torch.cat(embeddings, 0)
             images = torch.cat(images, 0)
             labels = torch.cat(labels, 0)
+            # 1200 because of sprite image limits of tensorboard
             logger.writer.add_embedding(
                 embeddings[:1200],
                 labels[:1200],
                 images[:1200],
-                engine.state.iteration,
+                engine.state.epoch,
             )
 
 
