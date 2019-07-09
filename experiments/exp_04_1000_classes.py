@@ -8,16 +8,17 @@ import numpy as np
 from absl import app, flags
 from PIL import Image
 from torchvision import transforms
-from torchvision.models import resnet
 from torch.nn.modules.loss import CrossEntropyLoss
 import config
 from dataset import landmark_recognition
 from utils import evaluation, logging, data
-from models import resnet
+import models
+from torch import nn
 
 
 flags.DEFINE_float("lr", 0.001, "Learning rate")
 flags.DEFINE_integer("num_classes", 1000, "Number of Classes")
+flags.DEFINE_boolean("eval", False, "Evaluation")
 FLAGS = flags.FLAGS
 
 
@@ -57,7 +58,7 @@ def main(_):
         ),
         label_encoder=label_encoder.fit_transform,
     )
-    model = resnet.build_model(out_dim=FLAGS.num_classes)
+    model = models.build_model()
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
     trainer = ignite.engine.create_supervised_trainer(
         model=model,
@@ -66,9 +67,11 @@ def main(_):
         device=FLAGS.device,
         non_blocking=True,
     )
-    evaluater = evaluation.build_evaluater(model, test_loader)
-    evaluation.attach_eval(evaluater, trainer, train_loader)
-    logging.attach_loggers(trainer, evaluater, model)
+    if FLAGS.eval is False:
+        model.fc = nn.Linear(model.fc.in_features, FLAGS.num_classes)
+        #evaluater = evaluation.build_evaluater(model, test_loader)
+        #evaluation.attach_eval(evaluater, trainer, train_loader)
+        #logging.attach_loggers(trainer, evaluater, model)
     trainer.run(train_loader, max_epochs=100)
 
 
