@@ -76,10 +76,13 @@ def main(_):
         metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
         device="cuda",
     )
+    # trainer.add_event_handler(
+    #     engine.Events.EPOCH_COMPLETED, lambda x: evaluater.run(valid_dl)
+    # )
 
     logging.attach_loggers(
         train_engine=trainer,
-        eval_engine=evaluater,
+        eval_engine=None,
         model=model,
         early_stopping_metric="Accuracy",
         additional_tb_log_handler=[
@@ -90,5 +93,7 @@ def main(_):
         ],
     )
     trainer.run(train_dl, max_epochs=50)
+
+
 if __name__ == "__main__":
     app.run(main)

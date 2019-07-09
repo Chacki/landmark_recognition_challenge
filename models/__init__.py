@@ -1,4 +1,5 @@
 from functools import partial
+from os import path
 
 import torch
 import torchvision.models as models
@@ -21,20 +22,22 @@ flags.DEFINE_enum(
     list(__models__.keys()),
     "Pretrained model to use",
 )
+flags.DEFINE_string("checkpoint", None, "Load checkpoint from given epoch")
 flags.DEFINE_integer("output_dim", None, "Output dimension of feature vector")
 FLAGS = flags.FLAGS
 
 
-def build_model(checkpoint=None, **kwargs):
+def build_model():
     # model gets an image as input and returns a vector
-    model = __models__[FLAGS.model](kwargs)
+    model = __models__[FLAGS.model]()
     if FLAGS.output_dim is None:
         model.fc = layers.Lambda(lambda x: x.view(x.size(0), -1))
     else:
         model.fc = nn.Linear(model.fc.in_features, FLAGS.output_dim)
-    if checkpoint:
-        state_dict = torch.load(checkpoint)
-        out_features = state_dict["fc.weight"].size(0)
-        model.fc = nn.Linear(model.fc.in_features, out_features)
-        model.load_state_dict(torch.load(checkpoint))
+    if FLAGS.checkpoint:
+        checkpoint_name = f"state_dict_model_{FLAGS.checkpoint}.pth"
+        state_dict = torch.load(
+            path.join(FLAGS.checkpoint_dir, checkpoint_name)
+        )
+        model.load_state_dict(torch.load(state_dict))
     return model

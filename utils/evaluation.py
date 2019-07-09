@@ -20,7 +20,6 @@ class CalculateAccuracy:
         self.model = model
 
     def __call__(self, predictions, targets):
-        print(targets)
         labels, dists = topk_dists(predictions, self.gallery_dl, self.model, 1)
         acc = (
             torch.tensor(labels[:, 0]).type_as(targets) == targets

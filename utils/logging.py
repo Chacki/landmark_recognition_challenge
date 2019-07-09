@@ -72,24 +72,12 @@ def attach_loggers(
             eval_engine,
             log_handler=handlers.tensorboard_logger.OutputHandler(
                 tag="validation",
-                output_transform=lambda engine: engine.state.metrics,
+                output_transform=lambda _: eval_engine.state.metrics,
                 another_engine=train_engine,
             ),
             event_name=Events.EPOCH_COMPLETED,
         )
         # early stopping and checkpoint
-        eval_engine.add_event_handler(
-            Events.COMPLETED,
-            ModelCheckpoint(
-                FLAGS.checkpoint_dir,
-                "model",
-                n_saved=10,
-                score_function=lambda x: x.state.metrics["gap"],
-                score_name="gap",
-                require_empty=False,
-            ),
-            {"model": model},
-        )
         if early_stopping_metric is not None:
             eval_engine.add_event_handler(
                 Events.COMPLETED,
