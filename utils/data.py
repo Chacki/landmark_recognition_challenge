@@ -4,7 +4,7 @@ Description: Contains utils for dataset stuff
 """
 
 import numpy as np
-import sklearn
+import sklearn.preprocessing
 
 
 class LabelEncoder:

@@ -1,12 +1,81 @@
+import itertools
+from operator import itemgetter
+
 import ignite
 import numpy as np
 import pandas as pd
-import pyflann
 import torch
 from absl import flags
+from sklearn.metrics import pairwise_distances
+from torch import nn
+from tqdm.auto import tqdm
 
 flags.DEFINE_integer("eval_epochs", 2, "Evaluate every N epochs")
 FLAGS = flags.FLAGS
+
+
+class CalculateAccuracy:
+    def __init__(self, gallery_dl, model):
+        self.gallery_dl = gallery_dl
+        self.model = model
+
+    def __call__(self, predictions, targets):
+        labels, dists = topk_dists(predictions, self.gallery_dl, self.model, 1)
+        acc = (
+            torch.tensor(labels[:, 0]).type_as(targets) == targets
+        ).sum() / targets.size(0)
+        return acc
+
+
+def predict_labels(query_dl, gallery_dl, model, topk):
+    query_feats = extract_feats(query_dl, model, 0)
+    labels, dists = topk_dists(query_feats, gallery_dl, model, topk)
+    return labels[:, 0]
+
+
+def extract_feats(dataloader, model, idx):
+    feats = []
+    with torch.no_grad():
+        for img in tqdm(map(itemgetter(idx), dataloader), "Extract feats"):
+            feat = nn.functional.normalize(
+                model(img.cuda()).view(img.size(0), -1)
+            ).cpu()
+            feats.append(feat)
+        feats = torch.cat(feats, axis=0)
+    return feats
+
+
+def topk_dists(query_feats, gallery_dl, model, topk):
+    dists = np.zeros((query_feats.size(0), topk)) - 1
+    labels = np.zeros_like(dists) - 1
+    with torch.no_grad():
+        for img, label in tqdm(gallery_dl, "Extract gallery feats"):
+            feats = (
+                nn.functional.normalize(model(img.cuda()).view(img.size(0), -1))
+                .cpu()
+                .numpy()
+            )
+            b_dists = np.concatenate(
+                (
+                    dists,
+                    pairwise_distances(
+                        query_feats, feats, metric="cosine", n_jobs=-1
+                    ),
+                ),
+                axis=1,
+            )
+            idxs = np.unravel_index(np.argsort(b_dists), b_dists.shape)
+            dists = b_dists[idxs][:, :topk]
+            labels = np.concatenate(
+                (
+                    labels,
+                    label.unsqueeze(0)
+                    .numpy()
+                    .repeat(query_feats.size(0), axis=0),
+                ),
+                axis=1,
+            )[idxs][:, :topk]
+    return labels, dists
 
 
 def gap_score(pred, conf, true, return_x=False):
@@ -97,4 +166,5 @@ def attach_eval(evaluater, trainer, db_loader):
         if engine.state.epoch % FLAGS.eval_epochs == 0:
             evaluater.run(db_loader)
             print("GAP:", evaluater.state.metrics["gap"])
+
     trainer.add_event_handler(ignite.engine.Events.EPOCH_COMPLETED, _eval)

@@ -20,21 +20,14 @@ class Dataset(Dataset):
 
     def __init__(self, dataframe, directory, transforms):
         super().__init__()
-        self.dataframe = dataframe
         self.directory = directory
         self.transforms = transforms
-
-    @property
-    def labels(self):
-        """ return all labels
-        """
-        return self.dataframe["landmark_id"].to_numpy()
+        self.ids = dataframe["id"].to_numpy()
+        self.labels = dataframe["landmark_id"].to_numpy()
 
     def __getitem__(self, index):
-        img_path, label = (
-            self.dataframe[["path", "landmark_id"]].iloc[index].T.to_numpy()
-        )
-        img_path = path.join(path.expanduser(self.directory), img_path)
+        img_name, label = self.ids[index], self.labels[index]
+        img_path = path.join(self.directory, img_name + ".jpg")
         return (self.transforms(img_path), torch.from_numpy(np.array(label)))
 
     def __len__(self):
