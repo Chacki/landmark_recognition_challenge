@@ -5,13 +5,9 @@ import ignite
 import numpy as np
 import pandas as pd
 import torch
-from absl import flags
 from sklearn.metrics import pairwise_distances
 from torch import nn
 from tqdm.auto import tqdm
-
-flags.DEFINE_integer("eval_epochs", 2, "Evaluate every N epochs")
-FLAGS = flags.FLAGS
 
 
 class CalculateAccuracy:
@@ -45,37 +41,56 @@ def extract_feats(dataloader, model, idx):
     return feats
 
 
-def topk_dists(query_feats, gallery_dl, model, topk):
-    dists = np.zeros((query_feats.size(0), topk)) - 1
-    labels = np.zeros_like(dists) - 1
+def get_topk(model: nn.Module, query_feats: torch.Tensor, gallery_dl, topk):
+    topk_dists = query_feats.new_zeros((query_feats.size(0), topk)) + 1
+    topk_idxs = query_feats.new_zeros((query_feats.size(0), topk))
+    topk_labels = query_feats.new_zeros((query_feats.size(0), topk)) - 1
+    nn.functional.normalize(query_feats, out=query_feats)
     with torch.no_grad():
-        for img, label in tqdm(gallery_dl, "Extract gallery feats"):
-            feats = (
-                nn.functional.normalize(model(img.cuda()).view(img.size(0), -1))
-                .cpu()
-                .numpy()
-            )
-            b_dists = np.concatenate(
+        for img, label in tqdm(gallery_dl):
+            feats = nn.functional.normalize(model(img.to(query_feats.device)))
+            dists = query_feats.matmul(feats.t())
+            tmp_dists = torch.cat((topk_dists, dists), dim=1)
+            tmp_labels = torch.cat(
                 (
-                    dists,
-                    pairwise_distances(
-                        query_feats, feats, metric="cosine", n_jobs=-1
-                    ),
-                ),
-                axis=1,
+                    topk_labels,
+                    label.unsqueeze(0).expand(topk_labels.size(0), -1),
+                )
             )
-            idxs = np.unravel_index(np.argsort(b_dists), b_dists.shape)
-            dists = b_dists[idxs][:, :topk]
-            labels = np.concatenate(
-                (
-                    labels,
-                    label.unsqueeze(0)
-                    .numpy()
-                    .repeat(query_feats.size(0), axis=0),
-                ),
-                axis=1,
-            )[idxs][:, :topk]
-    return labels, dists
+            tmp_dists.topk(
+                topk, dim=1, sorted=False, out=(topk_dists, topk_idxs)
+            )
+            tmp_labels.gather(1, topk_idxs, out=topk_labels)
+    return topk_labels, topk_labels
+
+
+def predict_labels(
+    topk,
+    model=None,
+    query_dl=None,
+    query_feats=None,
+    gallery_dl=None,
+    gallery_feats=None,
+    gallery_labels=None,
+):
+    assert (query_dl is None) != (query_feats is None)
+    assert (gallery_feats is None) == (gallery_labels is None)
+    assert (gallery_dl is None) != (gallery_feats is None)
+    if query_feats is None:
+        query_feats = extract_feats(query_dl, model, 0)
+    if gallery_dl is not None:
+        topk_labels, topk_dists = get_topk(model, query_feats, gallery_dl, topk)
+        topk_dists, topk_idxs = topk_dists.sort(dim=1, descending=True)
+        topk_labels = topk_labels[topk_idxs]
+    else:
+        query_feats = nn.functional.normalize(query_feats)
+        gallery_feats = nn.functional.normalize(gallery_feats)
+        dists = query_feats.matmul(gallery_feats.t())
+        exp_l = gallery_labels.unsqueeze(0).expand(query_feats.size(0), -1)
+        topk_dists, topk_idxs = dists.topk(topk, dim=1, sorted=True)
+        topk_labels = exp_l.gather(1, topk_idxs)
+
+    return topk_labels, topk_dists
 
 
 def gap_score(pred, conf, true, return_x=False):
