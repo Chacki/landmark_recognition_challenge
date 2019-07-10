@@ -16,17 +16,11 @@ class CalculateAccuracy:
         self.model = model
 
     def __call__(self, predictions, targets):
-        labels, dists = topk_dists(predictions, self.gallery_dl, self.model, 1)
+        labels, dists = get_topk(self.model, predictions, self.gallery_dl, 1)
         acc = (
             torch.tensor(labels[:, 0]).type_as(targets) == targets
         ).sum() / targets.size(0)
         return acc
-
-
-def predict_labels(query_dl, gallery_dl, model, topk):
-    query_feats = extract_feats(query_dl, model, 0)
-    labels, dists = topk_dists(query_feats, gallery_dl, model, topk)
-    return labels[:, 0]
 
 
 def extract_feats(dataloader, model, idx):
@@ -55,13 +49,14 @@ def get_topk(model: nn.Module, query_feats: torch.Tensor, gallery_dl, topk):
                 (
                     topk_labels,
                     label.unsqueeze(0).expand(topk_labels.size(0), -1),
-                )
+                ),
+                dim=1,
             )
             tmp_dists.topk(
                 topk, dim=1, sorted=False, out=(topk_dists, topk_idxs)
             )
             tmp_labels.gather(1, topk_idxs, out=topk_labels)
-    return topk_labels, topk_labels
+    return topk_labels, topk_dists
 
 
 def predict_labels(
@@ -81,7 +76,7 @@ def predict_labels(
     if gallery_dl is not None:
         topk_labels, topk_dists = get_topk(model, query_feats, gallery_dl, topk)
         topk_dists, topk_idxs = topk_dists.sort(dim=1, descending=True)
-        topk_labels = topk_labels[topk_idxs]
+        topk_labels.gather(1, topk_idxs, out=topk_labels)
     else:
         query_feats = nn.functional.normalize(query_feats)
         gallery_feats = nn.functional.normalize(gallery_feats)
@@ -89,7 +84,6 @@ def predict_labels(
         exp_l = gallery_labels.unsqueeze(0).expand(query_feats.size(0), -1)
         topk_dists, topk_idxs = dists.topk(topk, dim=1, sorted=True)
         topk_labels = exp_l.gather(1, topk_idxs)
-
     return topk_labels, topk_dists
 
 

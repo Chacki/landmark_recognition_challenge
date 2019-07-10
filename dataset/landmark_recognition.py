@@ -31,47 +31,4 @@ class Dataset(Dataset):
         return (self.transforms(img_path), torch.from_numpy(np.array(label)))
 
     def __len__(self):
-        return self.dataframe.shape[0]
-
-
-def get_dataloaders(train_sampler, transforms, label_encoder=lambda x: x):
-    csv_path = path.join("./data/", FLAGS.dataset, "train.csv")
-    directory = path.dirname(csv_path)
-    # TODO should be filtered before downloading the images
-    dataframe = (
-        pd.read_csv(csv_path)
-        .groupby("landmark_id")
-        .filter(lambda x: len(x) > 3)
-    )
-    dataframe["landmark_id"] = label_encoder(dataframe["landmark_id"])
-    # take 2 instances of each class for testing
-    train_df, test_df = train_test_split(
-        dataframe,
-        test_size=int(dataframe["landmark_id"].nunique()) * 2,
-        stratify=dataframe["landmark_id"],
-    )
-    train_set = Dataset(train_df, directory, transforms)
-    test_set = Dataset(test_df, directory, transforms)
-    train_loader = DataLoader(
-        train_set,
-        sampler=train_sampler(train_set.labels),
-        batch_size=FLAGS.batch_size,
-        pin_memory=True,
-        num_workers=4,
-        drop_last=True,
-    )
-    test_loader = DataLoader(
-        test_set,
-        shuffle=False,
-        batch_size=FLAGS.batch_size,
-        pin_memory=True,
-        num_workers=4,
-    )
-    db_loader = DataLoader(
-        train_set,
-        shuffle=False,
-        batch_size=FLAGS.batch_size,
-        pin_memory=True,
-        num_workers=4,
-    )
-    return train_loader, test_loader, db_loader
+        return self.ids.shape[0]

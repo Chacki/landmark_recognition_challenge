@@ -1,66 +1,64 @@
-import pandas as pd
-import numpy as np
-import torch
-import torch.nn as nn
-from tqdm import tqdm
-from absl import flags
+from os import path
 
-flags.DEFINE_integer("num_top_predicts", 20, "Number of Predictions")
+import pandas as pd
+from absl import flags
+from PIL import Image
+from torch.utils.data import DataLoader
+from torchvision import transforms
+
+from dataset import landmark_recognition
+
+from . import evaluation
+
+flags.DEFINE_integer("num_top_predicts", 100, "Number of Predictions")
 FLAGS = flags.FLAGS
 
-def inference(data_loader, model):
-   '''  https://www.kaggle.com/artyomp/resnet50-baseline/code '''
-   model.eval()
 
-   activation = nn.Softmax(dim=1)
-   all_predicts, all_confs, all_targets = [], [], []
-
-   with torch.no_grad():
-       for i, data in enumerate(tqdm(data_loader)):
-           if data_loader.dataset.mode != 'test':
-               input_, target = data
-           else:
-               input_, target = data, None
-
-           output = model(input_.cuda())
-           output = activation(output)
-
-           confs, predicts = torch.topk(output, FLAGS.num_top_predicts)
-           all_confs.append(confs)
-           all_predicts.append(predicts)
-
-           if target is not None:
-               all_targets.append(target)
-
-   predicts = torch.cat(all_predicts)
-   confs = torch.cat(all_confs)
-   targets = torch.cat(all_targets) if len(all_targets) else None
-
-   return predicts, confs, targets
-
-
-def generate_submission(test_loader, model, label_encoder):
-
-
- sample_sub = pd.read_csv('../input/landmark-recognition-2019/recognition_sample_submission.csv')
-
- predicts_gpu, confs_gpu, _ = inference(test_loader, model)
- predicts, confs = predicts_gpu.cpu().numpy(), confs_gpu.cpu().numpy()
-
- labels = [label_encoder.inverse_transform(pred) for pred in predicts]
- print('labels')
- print(np.array(labels))
- print('confs')
- print(np.array(confs))
-
- sub = test_loader.dataset.dataframe
- def concat(label: np.ndarray, conf: np.ndarray) -> str:
-     return ' '.join([f'{L} {c}' for L, c in zip(label, conf)])
- sub['landmarks'] = [concat(label, conf) for label, conf in zip(labels, confs)]
-
- sample_sub = sample_sub.set_index('id')
- sub = sub.set_index('id')
- sample_sub.update(sub)
-
- sample_sub.to_csv('submission.csv')
-
+def generate_submission(
+    model, gallery_dl=None, gallery_feats=None, gallery_labels=None
+):
+    topk = FLAGS.num_top_predicts
+    model.eval()
+    csv_path = path.join(
+        "./data/", FLAGS.dataset, "recognition_sample_submission.csv"
+    )
+    query_df = pd.read_csv(csv_path)
+    query_df["landmark_id"] = 0
+    transform = transforms.Compose(
+        [
+            transforms.Lambda(lambda x: Image.open(x).convert("RGB")),
+            transforms.RandomCrop(224, pad_if_needed=True),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
+    query_ds = landmark_recognition.Dataset(
+        query_df, path.join(path.dirname(csv_path), "test"), transform
+    )
+    query_dl = DataLoader(
+        query_ds, batch_size=FLAGS.batch_size, num_workers=16, shuffle=False
+    )
+    labels, _ = evaluation.predict_labels(
+        topk,
+        model,
+        query_dl=query_dl,
+        gallery_dl=gallery_dl,
+        gallery_feats=gallery_feats,
+        gallery_labels=gallery_labels,
+    )
+    final_labels = labels[:, 0].cpu().numpy()
+    final_confidence = (
+        ((labels == labels[:, 0].unsqueeze(-1)).sum(-1).float() / topk)
+        .cpu()
+        .numpy()
+    )
+    query_df["labels"] = final_labels
+    query_df["confidence"] = final_confidence
+    query_df["landmarks"] = query_df["labels"].map(
+        lambda x: str(x) + " "
+    ) + query_df["confidence"].map(str)
+    query_df.to_csv(
+        path.join(FLAGS.evaluation_dir, "kaggle_submission.csv"),
+        columns=["id", "landmarks"],
+        index=False,
+    )
