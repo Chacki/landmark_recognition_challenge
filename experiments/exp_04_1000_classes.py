@@ -1,5 +1,5 @@
 """
-File: exp_00_test.py
+File: exp_04_1000_classes.py
 Description: Experiment script for testing purpose only
 """
 import ignite

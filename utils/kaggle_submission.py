@@ -15,7 +15,11 @@ FLAGS = flags.FLAGS
 
 
 def generate_submission(
-    model, gallery_dl=None, gallery_feats=None, gallery_labels=None
+    model,
+    gallery_dl=None,
+    gallery_feats=None,
+    gallery_labels=None,
+    label_transforms=None,
 ):
     topk = FLAGS.num_top_predicts
     model.eval()
@@ -38,20 +42,29 @@ def generate_submission(
     query_dl = DataLoader(
         query_ds, batch_size=FLAGS.batch_size, num_workers=16, shuffle=False
     )
-    labels, _ = evaluation.predict_labels(
-        topk,
-        model,
-        query_dl=query_dl,
-        gallery_dl=gallery_dl,
-        gallery_feats=gallery_feats,
-        gallery_labels=gallery_labels,
-    )
-    final_labels = labels[:, 0].cpu().numpy()
-    final_confidence = (
-        ((labels == labels[:, 0].unsqueeze(-1)).sum(-1).float() / topk)
-        .cpu()
-        .numpy()
-    )
+    if gallery_dl is not None or gallery_feats is not None:
+        labels, _ = evaluation.predict_labels(
+            topk,
+            model,
+            query_dl=query_dl,
+            gallery_dl=gallery_dl,
+            gallery_feats=gallery_feats,
+            gallery_labels=gallery_labels,
+        )
+        final_labels = labels[:, 0].cpu().numpy()
+        final_confidence = (
+            ((labels == labels[:, 0].unsqueeze(-1)).sum(-1).float() / topk)
+            .cpu()
+            .numpy()
+        )
+    else:
+        output = evaluation.extract_feats(query_dl, model, 0)
+        classes = torch.argmax(output, dim=1)
+        final_confidence = torch.max(output, dim=1)
+        final_confidence.sub_(final_confidence.min())
+        final_confidence.div_(final_confidence.max())
+        final_confidence = final_confidence.cpu().numpy()
+        final_labels = label_transforms(classes.cpu().numpy())
     query_df["labels"] = final_labels
     query_df["confidence"] = final_confidence
     query_df["landmarks"] = query_df["labels"].map(

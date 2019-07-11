@@ -8,9 +8,11 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
 flags.DEFINE_enum(
-    "dataset", None, listdir("./data/"), "select dataset from ./data/"
+    "dataset",
+    "google-landmark",
+    listdir("./data/"),
+    "select dataset from ./data/",
 )
-flags.mark_flag_as_required("dataset")
 FLAGS = flags.FLAGS
 
 

@@ -30,9 +30,7 @@ FLAGS = flags.FLAGS
 def build_model():
     # model gets an image as input and returns a vector
     model = __models__[FLAGS.model]()
-    if FLAGS.output_dim is None:
-        model.fc = layers.Lambda(lambda x: x.view(x.size(0), -1))
-    else:
+    if FLAGS.output_dim is not None:
         model.fc = nn.Linear(model.fc.in_features, FLAGS.output_dim)
     if FLAGS.checkpoint:
         checkpoint_name = f"state_dict_model_{FLAGS.checkpoint}.pth"
