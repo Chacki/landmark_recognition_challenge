@@ -16,7 +16,7 @@ from torchvision import transforms
 import config
 import models
 from dataset import landmark_recognition
-from utils import data, evaluation, logging
+from utils import data, kaggle_submission, logging
 
 flags.DEFINE_float("lr", 0.001, "Learning rate")
 flags.DEFINE_integer("num_classes", 1000, "Number of Classes")
@@ -71,7 +71,14 @@ def main(_):
 
     model = models.build_model()
     if FLAGS.eval:
-        print("eval")
+        df_gallery = pd.read_csv("./data/google-landmark/valid_train.csv")
+        gallery_ds = landmark_recognition.Dataset(
+            df_gallery, "./data/google-landmark/train", transform
+        )
+        gallery_dl = DataLoader(
+            dataset, batch_size=FLAGS.batch_size, num_workers=16
+        )
+        kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
     else:
         train_model = nn.Sequential(
             model,

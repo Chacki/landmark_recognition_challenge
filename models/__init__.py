@@ -39,5 +39,5 @@ def build_model():
         state_dict = torch.load(
             path.join(FLAGS.checkpoint_dir, checkpoint_name)
         )
-        model.load_state_dict(torch.load(state_dict))
+        model.load_state_dict(state_dict)
     return model

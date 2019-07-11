@@ -5,9 +5,12 @@ import ignite
 import numpy as np
 import pandas as pd
 import torch
+from absl import flags
 from sklearn.metrics import pairwise_distances
 from torch import nn
 from tqdm.auto import tqdm
+
+FLAGS = flags.FLAGS
 
 
 class CalculateAccuracy:
@@ -26,19 +29,23 @@ class CalculateAccuracy:
 def extract_feats(dataloader, model, idx):
     feats = []
     with torch.no_grad():
-        for img in tqdm(map(itemgetter(idx), dataloader), "Extract feats"):
+        for img in tqdm(
+            map(itemgetter(idx), dataloader),
+            "Extract feats",
+            total=len(dataloader),
+        ):
             feat = nn.functional.normalize(
                 model(img.cuda()).view(img.size(0), -1)
             ).cpu()
             feats.append(feat)
-        feats = torch.cat(feats, axis=0)
+        feats = torch.cat(feats, dim=0)
     return feats
 
 
 def get_topk(model: nn.Module, query_feats: torch.Tensor, gallery_dl, topk):
-    topk_dists = query_feats.new_zeros((query_feats.size(0), topk)) + 1
-    topk_idxs = query_feats.new_zeros((query_feats.size(0), topk))
-    topk_labels = query_feats.new_zeros((query_feats.size(0), topk)) - 1
+    topk_dists = query_feats.new_zeros((query_feats.size(0), topk)) - 1
+    topk_idxs = query_feats.new_zeros((query_feats.size(0), topk)).long()
+    topk_labels = query_feats.new_zeros((query_feats.size(0), topk)).long() - 1
     nn.functional.normalize(query_feats, out=query_feats)
     with torch.no_grad():
         for img, label in tqdm(gallery_dl):
@@ -48,14 +55,20 @@ def get_topk(model: nn.Module, query_feats: torch.Tensor, gallery_dl, topk):
             tmp_labels = torch.cat(
                 (
                     topk_labels,
-                    label.unsqueeze(0).expand(topk_labels.size(0), -1),
+                    label.to(query_feats.device)
+                    .unsqueeze(0)
+                    .expand(topk_labels.size(0), -1),
                 ),
                 dim=1,
             )
-            tmp_dists.topk(
-                topk, dim=1, sorted=False, out=(topk_dists, topk_idxs)
+            torch.topk(
+                tmp_dists,
+                topk,
+                dim=1,
+                sorted=False,
+                out=(topk_dists, topk_idxs),
             )
-            tmp_labels.gather(1, topk_idxs, out=topk_labels)
+            torch.gather(tmp_labels, 1, topk_idxs, out=topk_labels)
     return topk_labels, topk_dists
 
 
@@ -71,12 +84,14 @@ def predict_labels(
     assert (query_dl is None) != (query_feats is None)
     assert (gallery_feats is None) == (gallery_labels is None)
     assert (gallery_dl is None) != (gallery_feats is None)
+    model.to(FLAGS.device)
     if query_feats is None:
         query_feats = extract_feats(query_dl, model, 0)
     if gallery_dl is not None:
+        query_feats = query_feats.to(FLAGS.device)
         topk_labels, topk_dists = get_topk(model, query_feats, gallery_dl, topk)
         topk_dists, topk_idxs = topk_dists.sort(dim=1, descending=True)
-        topk_labels.gather(1, topk_idxs, out=topk_labels)
+        torch.gather(topk_labels, 1, topk_idxs, out=topk_labels)
     else:
         query_feats = nn.functional.normalize(query_feats)
         gallery_feats = nn.functional.normalize(gallery_feats)
