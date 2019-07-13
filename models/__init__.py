@@ -17,11 +17,9 @@ __models__ = {
 }
 
 flags.DEFINE_enum(
-    "model",
-    "resnet50_imagenet",
-    list(__models__.keys()),
-    "Pretrained model to use",
+    "model", None, list(__models__.keys()), "Pretrained model to use"
 )
+flags.mark_flag_as_required("model")
 flags.DEFINE_string("checkpoint", None, "Load checkpoint from given epoch")
 flags.DEFINE_integer("output_dim", None, "Output dimension of feature vector")
 FLAGS = flags.FLAGS
@@ -30,14 +28,15 @@ FLAGS = flags.FLAGS
 def build_model():
     # model gets an image as input and returns a vector
     model = __models__[FLAGS.model]()
-    if FLAGS.output_dim is None:
-        model.fc = layers.Lambda(lambda x: x.view(x.size(0), -1))
-    else:
+    if FLAGS.output_dim is not None:
         model.fc = nn.Linear(model.fc.in_features, FLAGS.output_dim)
+    return model
+
+
+def load_checkpoint(model):
     if FLAGS.checkpoint:
         checkpoint_name = f"state_dict_model_{FLAGS.checkpoint}.pth"
         state_dict = torch.load(
             path.join(FLAGS.checkpoint_dir, checkpoint_name)
         )
-        model.load_state_dict(torch.load(state_dict))
-    return model
+        model.load_state_dict(state_dict)
