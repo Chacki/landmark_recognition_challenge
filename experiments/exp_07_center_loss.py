@@ -13,13 +13,14 @@ from torchvision import transforms
 import config
 import models
 from dataset import landmark_recognition, matching_pairs_sampler
-from loss import triplet_loss
-from utils import evaluation, kaggle_submission, logging
+from loss import center_loss, triplet_loss
+from utils import data, evaluation, kaggle_submission, logging
 
 flags.DEFINE_float("lr", 0.0001, "Learning rate")
 flags.DEFINE_string("matching_pairs", None, "Path to matching pairs pkl file")
 flags.DEFINE_float("margin", 0.2, "Margin for triplet loss")
 flags.DEFINE_boolean("eval", False, "Evaluation")
+flags.DEFINE_float("centerloss_beta", 1, "Center loss multiplier")
 FLAGS = flags.FLAGS
 
 
@@ -40,6 +41,11 @@ def main(_):
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
     )
+    label_encoder = data.LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(
+        df_train["landmark_id"].to_numpy()
+    )
+    df_train["landmark_id"] = encoded_labels
     dataset = landmark_recognition.Dataset(
         df_train, "./data/google-landmark/train", transform
     )
@@ -73,10 +79,17 @@ def main(_):
         kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
+        triplet_loss = triplet_loss.OnlineHardNegativeMining(FLAGS.margin)
+        center_loss = center_loss.CenterLoss(
+            max(dataset.labels) + 1, model.fc.out_features
+        )
+        center_loss.to(FLAGS.device)
+        losses = [(triplet_loss, 1), (center_loss, FLAGS.centerloss_beta)]
+        loss = lambda y_pred, y: sum([a * l(y_pred, y) for l, a in losses])
         trainer = engine.create_supervised_trainer(
             model=model,
             optimizer=optimizer,
-            loss_fn=triplet_loss.OnlineHardNegativeMining(FLAGS.margin),
+            loss_fn=loss,
             device=FLAGS.device,
             non_blocking=True,
         )
@@ -103,7 +116,5 @@ def main(_):
             ],
         )
         trainer.run(train_dl, max_epochs=50)
-
-
 if __name__ == "__main__":
     app.run(main)
