@@ -2,6 +2,9 @@
 File: exp_05_adaptive_softmax.py
 Description: Experiment script for testing purpose only
 """
+import math
+from itertools import chain
+
 import ignite
 import numpy as np
 import pandas as pd
@@ -10,7 +13,6 @@ from absl import app, flags
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch import nn
-from torch.nn.modules.loss import CrossEntropyLoss
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import transforms
 
@@ -22,6 +24,30 @@ from utils import data, kaggle_submission, logging
 flags.DEFINE_float("lr", 0.001, "Learning rate")
 flags.DEFINE_boolean("eval", False, "Evaluation")
 FLAGS = flags.FLAGS
+
+
+class Model(nn.Module):
+    def __init__(self, backbone, num_classes):
+        super().__init__()
+        self.backbone = backbone
+        self.prediction = nn.AdaptiveLogSoftmaxWithLoss(
+            self.backbone.fc.out_features,
+            num_classes,
+            cutoffs=[
+                2 ** i for i in range(11, math.floor(math.log2(num_classes)))
+            ],
+            div_value=2,
+        )
+
+    def forward(self, x, target=None):
+        feats = self.backbone(x)
+        if self.training:
+            return feats
+        else:
+            return self.prediction.log_prob(feats)
+
+    def loss(self, y_pred, y):
+        return self.prediction(y_pred, y).loss
 
 
 def main(_):
@@ -49,15 +75,17 @@ def main(_):
         df_train, "./data/google-landmark/train", transform
     )
 
-    model = models.build_model()
+    backbone = models.build_model()
+    model = Model(backbone, max(dataset.labels) + 1)
+    models.load_checkpoint(model)
     if FLAGS.eval:
         kaggle_submission.generate_submission(
-            model, label_transforms=label_encoder.inverse_transform
+            model=model, label_transforms=label_encoder.inverse_transform
         )
     else:
         train_idxs, test_idxs = train_test_split(
             np.arange(len(dataset)),
-            test_size=0.1,
+            test_size=0.05,
             shuffle=True,
             stratify=dataset.labels,
         )
@@ -73,13 +101,12 @@ def main(_):
             sampler=SubsetRandomSampler(test_idxs),
             num_workers=16,
         )
-        model.fc = nn.Linear(model.fc.in_features, max(dataset.labels) + 1)
         optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
         print(model)
         trainer = ignite.engine.create_supervised_trainer(
             model=model,
             optimizer=optimizer,
-            loss_fn=CrossEntropyLoss(),
+            loss_fn=model.loss,
             device=FLAGS.device,
             non_blocking=True,
         )
@@ -100,5 +127,7 @@ def main(_):
             early_stopping_metric="Accuracy",
         )
         trainer.run(train_dl, max_epochs=100)
+
+
 if __name__ == "__main__":
     app.run(main)
