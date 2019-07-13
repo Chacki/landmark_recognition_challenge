@@ -21,6 +21,7 @@ flags.DEFINE_string("matching_pairs", None, "Path to matching pairs pkl file")
 flags.DEFINE_float("margin", 0.2, "Margin for triplet loss")
 flags.DEFINE_boolean("eval", False, "Evaluation")
 flags.DEFINE_float("centerloss_beta", 1, "Center loss multiplier")
+flags.DEFINE_boolean("sparse", False, "Use sparse center loss")
 FLAGS = flags.FLAGS
 
 
@@ -78,10 +79,16 @@ def main(_):
         )
         kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
         triplet_loss = triplet_loss.OnlineHardNegativeMining(FLAGS.margin)
         center_loss = center_loss.CenterLoss(
             max(dataset.labels) + 1, model.fc.out_features
+        )
+        optimizer = torch.optim.Adam(
+            [
+                {"params": model.parameters()},
+                {"params": center_loss.parameters()},
+            ],
+            lr=FLAGS.lr,
         )
         center_loss.to(FLAGS.device)
         losses = [(triplet_loss, 1), (center_loss, FLAGS.centerloss_beta)]
@@ -116,5 +123,7 @@ def main(_):
             ],
         )
         trainer.run(train_dl, max_epochs=50)
+
+
 if __name__ == "__main__":
     app.run(main)
