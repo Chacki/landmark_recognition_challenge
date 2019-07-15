@@ -41,10 +41,7 @@ def main(_):
     """ main entrypoint, must be called with app.run(main) to define all flags
     """
 
-    label_encoder = data.LabelEncoder()
     config.init_experiment()
-
-    df_train = pd.read_csv("./data/google-landmark/valid_train.csv")
 
     transform = transforms.Compose(
         [
@@ -54,32 +51,35 @@ def main(_):
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
     )
-    encoded_labels = label_encoder.fit_transform(
-        df_train["landmark_id"].to_numpy()
-    )
-    df_train["landmark_id"] = encoded_labels
-    dataset = landmark_recognition.Dataset(
-        df_train, "./data/google-landmark/train", transform
-    )
-    sampler = ClassSampler(encoded_labels)
-    dataloader = DataLoader(
-        dataset=dataset,
-        batch_size=FLAGS.batch_size,
-        sampler=sampler,
-        num_workers=16,
-    )
 
     model = models.build_model()
+    models.load_checkpoint(model)
     if FLAGS.eval:
         df_gallery = pd.read_csv("./data/google-landmark/valid_train.csv")
         gallery_ds = landmark_recognition.Dataset(
             df_gallery, "./data/google-landmark/train", transform
         )
         gallery_dl = DataLoader(
-            dataset, batch_size=FLAGS.batch_size, num_workers=16
+            gallery_ds, batch_size=FLAGS.batch_size, num_workers=16
         )
         kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
     else:
+        label_encoder = data.LabelEncoder()
+        df_train = pd.read_csv("./data/google-landmark/valid_train.csv")
+        encoded_labels = label_encoder.fit_transform(
+            df_train["landmark_id"].to_numpy()
+        )
+        df_train["landmark_id"] = encoded_labels
+        dataset = landmark_recognition.Dataset(
+            df_train, "./data/google-landmark/train", transform
+        )
+        sampler = ClassSampler(encoded_labels)
+        dataloader = DataLoader(
+            dataset=dataset,
+            batch_size=FLAGS.batch_size,
+            sampler=sampler,
+            num_workers=16,
+        )
         train_model = nn.Sequential(
             model,
             nn.ReLU(),

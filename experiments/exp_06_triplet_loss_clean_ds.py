@@ -14,7 +14,7 @@ import config
 import models
 from dataset import landmark_recognition, matching_pairs_sampler
 from loss import triplet_loss
-from utils import evaluation, logging
+from utils import evaluation, kaggle_submission, logging
 
 flags.DEFINE_float("lr", 0.0001, "Learning rate")
 flags.DEFINE_string("matching_pairs", None, "Path to matching pairs pkl file")
@@ -62,37 +62,44 @@ def main(_):
     )
 
     model = models.build_model()
-    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
-    trainer = engine.create_supervised_trainer(
-        model=model,
-        optimizer=optimizer,
-        loss_fn=triplet_loss.OnlineHardNegativeMining(FLAGS.margin),
-        device="cuda",
-        non_blocking=True,
-    )
-    acc_metric = evaluation.CalculateAccuracy(train_dl, model)
-    evaluater = engine.create_supervised_evaluator(
-        model=model,
-        metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
-        device="cuda",
-    )
-    # trainer.add_event_handler(
-    #     engine.Events.EPOCH_COMPLETED, lambda x: evaluater.run(valid_dl)
-    # )
+    models.load_checkpoint(model)
+    if FLAGS.eval:
+        gallery_dl = DataLoader(
+            dataset=dataset, batch_size=FLAGS.batch_size, num_workers=16
+        )
+        kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
+        trainer = engine.create_supervised_trainer(
+            model=model,
+            optimizer=optimizer,
+            loss_fn=triplet_loss.OnlineHardNegativeMining(FLAGS.margin),
+            device="cuda",
+            non_blocking=True,
+        )
+        acc_metric = evaluation.CalculateAccuracy(train_dl, model)
+        evaluater = engine.create_supervised_evaluator(
+            model=model,
+            metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
+            device="cuda",
+        )
+        # trainer.add_event_handler(
+        #     engine.Events.EPOCH_COMPLETED, lambda x: evaluater.run(valid_dl)
+        # )
 
-    logging.attach_loggers(
-        train_engine=trainer,
-        eval_engine=None,
-        model=model,
-        early_stopping_metric="Accuracy",
-        additional_tb_log_handler=[
-            (
-                logging.EmbeddingHandler(model, valid_dl),
-                engine.Events.EPOCH_COMPLETED,
-            )
-        ],
-    )
-    trainer.run(train_dl, max_epochs=50)
+        logging.attach_loggers(
+            train_engine=trainer,
+            eval_engine=None,
+            model=model,
+            early_stopping_metric="Accuracy",
+            additional_tb_log_handler=[
+                (
+                    logging.EmbeddingHandler(model, valid_dl),
+                    engine.Events.EPOCH_COMPLETED,
+                )
+            ],
+        )
+        trainer.run(train_dl, max_epochs=50)
 
 
 if __name__ == "__main__":
