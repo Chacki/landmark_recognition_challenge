@@ -62,11 +62,8 @@ def main(_):
         num_workers=16,
     )
     model = models.build_model()
+    models.load_checkpoint(model)
     if FLAGS.eval:
-        df_train = pd.read_csv("./data/google-landmark/valid_train.csv")
-        dataset = landmark_recognition.Dataset(
-            df_train, "./data/google-landmark/train", transform
-        )
         gallery_dl = DataLoader(
             dataset=dataset, batch_size=FLAGS.batch_size, num_workers=16
         )
@@ -80,27 +77,12 @@ def main(_):
             device=FLAGS.device,
             non_blocking=True,
         )
-        acc_metric = evaluation.CalculateAccuracy(train_dl, model)
-        evaluater = engine.create_supervised_evaluator(
-            model=model,
-            metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
-            device=FLAGS.device,
-        )
-        trainer.add_event_handler(
-            engine.Events.EPOCH_COMPLETED, lambda x: evaluater.run(valid_dl)
-        )
 
         logging.attach_loggers(
             train_engine=trainer,
             eval_engine=None,
             model=model,
             early_stopping_metric="Accuracy",
-            additional_tb_log_handler=[
-                (
-                    logging.EmbeddingHandler(model, valid_dl),
-                    engine.Events.EPOCH_COMPLETED,
-                )
-            ],
         )
         trainer.run(train_dl, max_epochs=50)
 
