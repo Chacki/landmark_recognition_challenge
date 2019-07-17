@@ -79,19 +79,16 @@ def main(_):
         )
         kaggle_submission.generate_submission(model, gallery_dl=gallery_dl)
     else:
-        triplet_loss = triplet_loss.OnlineHardNegativeMining(FLAGS.margin)
-        center_loss = center_loss.CenterLoss(
+        triplet_l = triplet_loss.OnlineHardNegativeMining(FLAGS.margin)
+        center_l = center_loss.CenterLoss(
             max(dataset.labels) + 1, model.fc.out_features
         )
         optimizer = torch.optim.Adam(
-            [
-                {"params": model.parameters()},
-                {"params": center_loss.parameters()},
-            ],
+            [{"params": model.parameters()}, {"params": center_l.parameters()}],
             lr=FLAGS.lr,
         )
-        center_loss.to(FLAGS.device)
-        losses = [(triplet_loss, 1), (center_loss, FLAGS.centerloss_beta)]
+        center_l.to(FLAGS.device)
+        losses = [(triplet_l, 1), (center_l, FLAGS.centerloss_beta)]
         loss = lambda y_pred, y: sum([a * l(y_pred, y) for l, a in losses])
         trainer = engine.create_supervised_trainer(
             model=model,
@@ -100,27 +97,12 @@ def main(_):
             device=FLAGS.device,
             non_blocking=True,
         )
-        acc_metric = evaluation.CalculateAccuracy(train_dl, model)
-        evaluater = engine.create_supervised_evaluator(
-            model=model,
-            metrics={"Accuracy": metrics.EpochMetric(acc_metric)},
-            device=FLAGS.device,
-        )
-        trainer.add_event_handler(
-            engine.Events.EPOCH_COMPLETED, lambda x: evaluater.run(valid_dl)
-        )
 
         logging.attach_loggers(
             train_engine=trainer,
             eval_engine=None,
             model=model,
             early_stopping_metric="Accuracy",
-            additional_tb_log_handler=[
-                (
-                    logging.EmbeddingHandler(model, valid_dl),
-                    engine.Events.EPOCH_COMPLETED,
-                )
-            ],
         )
         trainer.run(train_dl, max_epochs=50)
 

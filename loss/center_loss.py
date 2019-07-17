@@ -9,6 +9,7 @@ from torch import nn
 
 class CenterLoss(nn.Module):
     def __init__(self, num_classes, feature_dim, sparse=False):
+        super().__init__()
         self.centers = nn.Embedding(num_classes, feature_dim, sparse=sparse)
         self.loss = nn.MSELoss()
 
