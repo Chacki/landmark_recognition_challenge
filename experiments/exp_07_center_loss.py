@@ -22,6 +22,7 @@ flags.DEFINE_float("margin", 0.2, "Margin for triplet loss")
 flags.DEFINE_boolean("eval", False, "Evaluation")
 flags.DEFINE_float("centerloss_beta", 1, "Center loss multiplier")
 flags.DEFINE_boolean("sparse", False, "Use sparse center loss")
+flags.DEFINE_float("center_lr", 0.0001, "Learning rate for centerloss params")
 FLAGS = flags.FLAGS
 
 
@@ -84,7 +85,10 @@ def main(_):
             max(dataset.labels) + 1, model.fc.out_features
         )
         optimizer = torch.optim.Adam(
-            [{"params": model.parameters()}, {"params": center_l.parameters()}],
+            [
+                {"params": model.parameters()},
+                {"params": center_l.parameters(), "lr": FLAGS.center_lr},
+            ],
             lr=FLAGS.lr,
         )
         center_l.to(FLAGS.device)
