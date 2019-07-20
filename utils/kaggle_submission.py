@@ -1,6 +1,7 @@
 from os import path
 
 import pandas as pd
+import torch
 from absl import flags
 from PIL import Image
 from torch.utils.data import DataLoader
@@ -23,6 +24,7 @@ def generate_submission(
 ):
     topk = FLAGS.num_top_predicts
     model.eval()
+    model.to(FLAGS.device)
     csv_path = path.join(
         "./data/", FLAGS.dataset, "recognition_sample_submission.csv"
     )
@@ -58,13 +60,19 @@ def generate_submission(
             .numpy()
         )
     else:
-        output = evaluation.extract_feats(query_dl, model, 0)
-        classes = torch.argmax(output, dim=1)
-        final_confidence = torch.max(output, dim=1)
+        classes = []
+        final_confidence = []
+        with torch.no_grad():
+            for img, _ in query_dl:
+                out = torch.max(model(img.to(FLAGS.device)), dim=1)
+                classes.append(out.indices.cpu())
+                final_confidence.append(out.values.cpu())
+        classes = torch.cat(classes, dim=0)
+        final_confidence = torch.cat(final_confidence, dim=0)
         final_confidence.sub_(final_confidence.min())
         final_confidence.div_(final_confidence.max())
-        final_confidence = final_confidence.cpu().numpy()
-        final_labels = label_transforms(classes.cpu().numpy())
+        final_confidence = final_confidence.numpy()
+        final_labels = label_transforms(classes.numpy())
     query_df["labels"] = final_labels
     query_df["confidence"] = final_confidence
     query_df["landmarks"] = query_df["labels"].map(

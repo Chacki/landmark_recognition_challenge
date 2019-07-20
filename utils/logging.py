@@ -89,6 +89,19 @@ def attach_loggers(
                     trainer=train_engine,
                 ),
             )
+            eval_engine.add_event_handler(
+                Events.COMPLETED,
+                ModelCheckpoint(
+                    FLAGS.checkpoint_dir,
+                    "state_dict",
+                    score_function=lambda x: x.state.metrics[
+                        early_stopping_metric
+                    ],
+                    score_name=early_stopping_metric,
+                    require_empty=False,
+                ),
+                {"model": model},
+            )
     else:
         train_engine.add_event_handler(
             Events.EPOCH_COMPLETED,

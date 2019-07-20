@@ -1,4 +1,5 @@
 from functools import partial
+from glob import glob
 from os import path
 
 import torch
@@ -35,8 +36,11 @@ def build_model():
 
 def load_checkpoint(model):
     if FLAGS.checkpoint:
-        checkpoint_name = f"state_dict_model_{FLAGS.checkpoint}.pth"
-        state_dict = torch.load(
-            path.join(FLAGS.checkpoint_dir, checkpoint_name)
-        )
+        checkpoint_path = glob(
+            path.join(
+                FLAGS.checkpoint_dir,
+                f"state_dict_model_{FLAGS.checkpoint}*.pth",
+            )
+        )[0]
+        state_dict = torch.load(checkpoint_path)
         model.load_state_dict(state_dict)

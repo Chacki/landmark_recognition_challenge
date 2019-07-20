@@ -108,3 +108,7 @@ venv.bak/
 # editor
 .idea/
 .DS_Store
+
+checkpoint
+evaluation
+tensorboard
