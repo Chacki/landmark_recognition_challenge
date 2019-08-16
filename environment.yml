@@ -17,5 +17,7 @@ dependencies:
   - conda-forge::tensorboardx<1.7
   - pip
   - pip:
+    - pytorch-lightning
     - tensorboard
     - tensorflow
+    - efficientnet-pytorch

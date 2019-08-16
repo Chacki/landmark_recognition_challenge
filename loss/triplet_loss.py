@@ -3,10 +3,7 @@ File: triplet_loss.py
 Description: Implementation of margin ranking loss
 """
 import torch
-from absl import flags
 from torch import nn
-
-FLAGS = flags.FLAGS
 
 
 class OnlineHardMining:
@@ -61,7 +58,5 @@ class OnlineHardNegativeMining:
                 dist[is_neg].contiguous().view(N, -1), 1, keepdim=True
             )
         # shape [N]
-        loss = self.loss(
-            feats[::2], feats[1::2], feats[relative_n_inds].squeeze()[::2]
-        )
+        loss = self.loss(feats[::2], feats[1::2], feats[relative_n_inds].squeeze()[::2])
         return loss

@@ -1,22 +1,11 @@
-from os import listdir, path
+from os import path
 
 import numpy as np
-import pandas as pd
 import torch
-from absl import flags
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset
-
-flags.DEFINE_enum(
-    "dataset",
-    "google-landmark",
-    listdir("./data/"),
-    "select dataset from ./data/",
-)
-FLAGS = flags.FLAGS
+from torch.utils import data
 
 
-class Dataset(Dataset):
+class Dataset(data.Dataset):
     """ Loads training data. csv must have two columns: 'url' and 'landmark_id'
     """
 
