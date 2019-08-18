@@ -10,7 +10,8 @@ from test_tube import Experiment, HyperOptArgumentParser
 from efficientnet_pytorch import EfficientNet
 from torch import nn
 import torch
-from loss.triplet_loss import OnlineHardMining
+from loss.triplet_loss import OnlineHardMining, TripletLoss
+from loss.center_loss import CenterLoss
 import pandas as pd
 from torchvision import transforms
 from PIL import Image
@@ -20,6 +21,8 @@ import numpy as np
 from utils.finch import FINCH
 import os
 from dataset.sampler import RandomIdentitySampler
+from utils.data import LabelEncoder
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from tqdm.auto import tqdm
 
@@ -36,6 +39,8 @@ class ClusteredDataset(data.Dataset):
         self.clusters = np.random.randint(
             0, high=num_clusters, size=self.labels.shape
         )
+        self.label_encoder = LabelEncoder()
+        self.labels = self.label_encoder.fit_transform(self.labels)
 
     def __getitem__(self, index):
         img_name, label, cluster = (
@@ -54,21 +59,16 @@ class ClusteredDataset(data.Dataset):
         return self.ids.shape[0]
 
     def update_clusters(self, dataloader):
+        # self.clusters = np.random.randint(
+        #     low=0, high=self.num_clusters, size=self.labels.shape
+        # )
+        # return
         test_out = self.model(torch.rand(1, 3, 224, 224).cuda())
         batch_size = dataloader.batch_size
         with torch.no_grad():
             feats = [
                 self.model(batch[0].cuda()).cpu() for batch in tqdm(dataloader)
             ]
-            # feats = torch.empty(
-            #     (self.labels.shape[0], test_out.size(1)), dtype=torch.float32
-            # )
-            # l = 0
-            # u = batch_size
-            # for idx, batch in enumerate(tqdm(dataloader)):
-            #     feats[l:u] = self.model(batch[0].cuda()).cpu()
-            #     l = u
-            #     u += batch_size
             feats = torch.cat(feats, dim=0)
             cluster, num_cluster, req_cluster = FINCH(
                 feats.numpy(), req_clust=self.num_clusters
@@ -78,7 +78,7 @@ class ClusteredDataset(data.Dataset):
 
 def build_model(embedding_dim, feats_only=False):
     model = EfficientNet.from_pretrained(
-        "efficientnet-b0", num_classes=embedding_dim
+        "efficientnet-b2", num_classes=embedding_dim
     )
     if feats_only:
         model._fc = nn.Flatten()
@@ -102,12 +102,14 @@ class Model(LightningModule):
             gating_feats, gating_clf, nn.Softmax(dim=1)
         )
 
-        self.loss = OnlineHardMining(margin)
+        # self.loss = OnlineHardMining(margin)
+        self.loss = TripletLoss(margin=margin)
 
         transform = transforms.Compose(
             [
                 transforms.Lambda(lambda x: Image.open(x).convert("RGB")),
                 transforms.RandomCrop(224, pad_if_needed=True),
+                transforms.RandomRotation(90),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
@@ -120,6 +122,12 @@ class Model(LightningModule):
             transform,
             num_clusters,
             gating_feats,
+        )
+        print(len(np.unique(self.train_ds.labels)))
+        self.center_loss = CenterLoss(
+            num_classes=len(np.unique(self.train_ds.labels)),
+            feature_dim=embedding_dim,
+            sparse=False,
         )
 
     def training_step(self, batch, batch_nb):
@@ -134,15 +142,20 @@ class Model(LightningModule):
             img_feats[:, idx, :] = nn.functional.normalize(model(img))
 
         weighted_img_feats = img_feats * gate.unsqueeze(-1)
-        final_img_feat = nn.functional.normalize(
-            torch.max(weighted_img_feats, 1).values
-        )
+        final_img_feat = weighted_img_feats.sum(dim=1)
 
-        loss_embed = self.loss(final_img_feat, label)
+        loss_triplet = self.loss(final_img_feat, label)
+        # loss_center = self.center_loss(final_img_feat, label)
         loss_gating = nn.functional.cross_entropy(gate, cluster)
+        acc_gating = torch.argmax(gate, -1).eq(cluster).float().mean()
         return {
-            "loss": loss_embed + loss_gating,
-            "prog": {"loss_embed": loss_embed, "loss_gating": loss_gating},
+            "loss": loss_triplet + loss_gating,
+            "prog": {
+                "loss_triplet": loss_triplet,
+                # "loss_center": loss_center,
+                "loss_gating": loss_gating,
+                "acc_gating": acc_gating,
+            },
         }
 
     def on_epoch_start(self):
@@ -173,7 +186,7 @@ class Model(LightningModule):
 def main():
     parser = HyperOptArgumentParser()
     parser.opt_list(
-        "--num_cluster", default=2, type=int, tunable=True, options=[2, 3, 4]
+        "--num_cluster", default=3, type=int, tunable=True, options=[3, 4, 5]
     )
     parser.opt_list(
         "--embedding_dim",
@@ -184,7 +197,7 @@ def main():
     )
     parser.opt_range(
         "--margin",
-        default=0.5,
+        default=1.0,
         type=float,
         tunable=True,
         low=0.2,
@@ -196,7 +209,15 @@ def main():
     experiment = Experiment(save_dir=os.path.join(os.getcwd(), "bla"))
     experiment.argparse(hparams)
     experiment.save()
-    trainer = Trainer(experiment=experiment, gpus=[0])
+    checkpoint_callback = ModelCheckpoint(
+        "model/weights.ckpt",
+        monitor="loss_triplet",
+        mode="min",
+        save_best_only=True,
+    )
+    trainer = Trainer(
+        experiment=experiment, gpus=[0], checkpoint_callback=checkpoint_callback
+    )
     model = Model(hparams.num_cluster, hparams.embedding_dim, hparams.margin)
     trainer.fit(model)
 
