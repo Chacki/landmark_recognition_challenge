@@ -2,7 +2,8 @@ from os import path
 
 import pandas as pd
 import torch
-from absl import flags
+
+# from absl import flags
 from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -11,8 +12,18 @@ from dataset import landmark_recognition
 
 from . import evaluation
 
-flags.DEFINE_integer("num_top_predicts", 100, "Number of Predictions")
-FLAGS = flags.FLAGS
+# flags.DEFINE_integer("num_top_predicts", 100, "Number of Predictions")
+# FLAGS = flags.FLAGS
+class Flags:
+    def __init__(self):
+        self.batch_size = 256
+        self.device = "cuda"
+        self.num_top_predicts = 100
+        self.dataset = "google-landmark"
+        self.evaluation_dir = "evaluation"
+
+
+FLAGS = Flags()
 
 
 def generate_submission(

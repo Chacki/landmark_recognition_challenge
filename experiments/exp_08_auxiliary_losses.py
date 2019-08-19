@@ -66,6 +66,7 @@ class ClusteredDataset(data.Dataset):
         test_out = self.model(torch.rand(1, 3, 224, 224).cuda())
         batch_size = dataloader.batch_size
         with torch.no_grad():
+            self.model.eval()
             feats = [
                 self.model(batch[0].cuda()).cpu() for batch in tqdm(dataloader)
             ]
@@ -73,6 +74,7 @@ class ClusteredDataset(data.Dataset):
             cluster, num_cluster, req_cluster = FINCH(
                 feats.numpy(), req_clust=self.num_clusters
             )
+            self.model.train()
         self.clusters = req_cluster.astype(np.long)
 
 
@@ -86,8 +88,11 @@ def build_model(embedding_dim, feats_only=False):
 
 
 class Model(LightningModule):
-    def __init__(self, num_clusters, embedding_dim, margin):
+    def __init__(self, hparams):
         super().__init__()
+        num_clusters = hparams.num_cluster
+        embedding_dim = hparams.embedding_dim
+        margin = hparams.margin
         self.num_clusters = num_clusters
         self.embedding_dim = embedding_dim
 
@@ -129,6 +134,19 @@ class Model(LightningModule):
             feature_dim=embedding_dim,
             sparse=False,
         )
+
+    def forward(self, img):
+        gate = self.gating_model(img)
+
+        img_feats = gate.new_empty(
+            img.size(0), self.num_clusters, self.embedding_dim
+        )
+        for idx, model in enumerate(self.feature_extractors):
+            img_feats[:, idx, :] = nn.functional.normalize(model(img))
+
+        weighted_img_feats = img_feats * gate.unsqueeze(-1)
+        final_img_feat = weighted_img_feats.sum(dim=1)
+        return final_img_feat
 
     def training_step(self, batch, batch_nb):
         img, label, cluster = batch
@@ -183,6 +201,33 @@ class Model(LightningModule):
         return valid_dl
 
 
+from utils.kaggle_submission import generate_submission
+
+
+def test(hparams):
+    model = Model(hparams)
+    model.load_from_metrics(
+        weights_path="model/weights.ckpt/_ckpt_epoch_5.ckpt",
+        tags_csv=f"bla/default/version_{hparams.version}/meta_tags.csv",
+        on_gpu=True,
+        map_location=None,
+    )
+
+    model.train_ds.labels = model.train_ds.label_encoder.inverse_transform(
+        model.train_ds.labels
+    )
+    model.freeze()
+    model.eval()
+    with torch.no_grad():
+        generate_submission(
+            model=model,
+            gallery_dl=map(lambda x: (x[0], x[1]), model.val_dataloader),
+            # gallery_labels=model.train_ds.label_encoder.inverse_transform(
+            #     model.train_ds.labels
+            # ),
+        )
+
+
 def main():
     parser = HyperOptArgumentParser()
     parser.opt_list(
@@ -204,9 +249,16 @@ def main():
         high=1.0,
         nb_samples=8,
     )
+    parser.add_argument("--version", default=None, type=int)
+    parser.add_argument("--test", default=False, type=bool)
     hparams = parser.parse_args()
+    if hparams.test:
+        test(hparams)
+        return
 
-    experiment = Experiment(save_dir=os.path.join(os.getcwd(), "bla"))
+    experiment = Experiment(
+        save_dir=os.path.join(os.getcwd(), "bla"), version=hparams.version
+    )
     experiment.argparse(hparams)
     experiment.save()
     checkpoint_callback = ModelCheckpoint(
@@ -218,7 +270,7 @@ def main():
     trainer = Trainer(
         experiment=experiment, gpus=[0], checkpoint_callback=checkpoint_callback
     )
-    model = Model(hparams.num_cluster, hparams.embedding_dim, hparams.margin)
+    model = Model(hparams)
     trainer.fit(model)
 
 

@@ -5,12 +5,18 @@ import ignite
 import numpy as np
 import pandas as pd
 import torch
-from absl import flags
+
+# from absl import flags
 from sklearn.metrics import pairwise_distances
 from torch import nn
 from tqdm.auto import tqdm
 
-FLAGS = flags.FLAGS
+# FLAGS = flags.FLAGS
+# FIXME get rid of flags
+
+from collections import namedtuple
+flags = namedtuple("flags", ["device"])
+FLAGS = flags("cuda")
 
 
 class CalculateAccuracy:
